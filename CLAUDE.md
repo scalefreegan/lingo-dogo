@@ -25,6 +25,18 @@ and YAML under `content/`, tracked by git. Read `docs/PRD.md` first, then
 Beads: `bd ready` for unblocked work, `bd show <id>` for context, `bd close <id>`
 when done. Prefix `ld`. File new work as beads, not TODO comments.
 
+## Build & test
+```sh
+npm install && npm --prefix web install
+npm run dev                    # http://localhost:38400
+npm test                       # node --test scripts/tests/*.test.mjs
+npm --prefix web run lint      # oxlint
+(cd web && npx tsc -b)
+npm run export -- content/packs/<id>.yaml
+```
+Tests point the loader at fixtures via `LINGO_CONTENT_DIR` and `LINGO_EXPORTS_DIR`;
+never write to the real `content/` or `exports/` from a test.
+
 ## Conventions
 - TypeScript strict; `oxlint` (config copied from wine-guide).
 - Comments explain *why*, at the density of wine-guide's server code.
