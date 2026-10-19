@@ -66,6 +66,10 @@ export interface Scenario {
   tags: string[];
   /** Suggested target variant, e.g. "es-MX"; the profile can override. */
   language: string | null;
+  /** Grouping on the Scene tab, e.g. "Oaxaca trip"; null = ungrouped. */
+  collection: string | null;
+  /** Filter chip on the Scene tab, e.g. "Food & drink"; null = uncategorized. */
+  category: string | null;
   /** role key (dojo_master, learner, …) → description */
   roles: Record<string, string>;
   beats: string[];

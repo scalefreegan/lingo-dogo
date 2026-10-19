@@ -4,6 +4,8 @@ title: Shopping at the Mercado 20 de Noviembre
 summary: Buying chapulines, quesillo, tlayudas, and chocolate at a Oaxaca city market, with some light haggling.
 tags: [oaxaca, market, food, travel]
 language: es-MX
+collection: Oaxaca trip
+category: Shopping
 roles:
   dojo_master: Doña Carmen, a vendor who has run the same stall for over twenty years, friendly and quick-talking, used to tourists but genuinely warm
   learner: a visitor doing their own grocery shopping for the first time in the market, a little overwhelmed by the choices

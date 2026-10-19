@@ -373,6 +373,8 @@ function loadScenario(abs, report) {
     summary: fm.summary.trim(),
     tags: strList(fm.tags),
     language: typeof fm.language === "string" ? fm.language : null,
+    collection: typeof fm.collection === "string" && fm.collection.trim() ? fm.collection.trim() : null,
+    category: typeof fm.category === "string" && fm.category.trim() ? fm.category.trim() : null,
     roles,
     beats: strList(fm.beats),
     vocab,

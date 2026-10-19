@@ -76,6 +76,11 @@ title: Mezcal tasting at a palenque
 summary: Visiting a small family palenque near Santiago Matatlán.
 tags: [oaxaca, mezcal, travel]
 language: es-MX               # suggested target variant; profile can override
+collection: Oaxaca trip       # optional; Scene tab groups cards under this heading
+category: Food & drink        # optional; Scene tab filter chip. Use one of:
+                              #   Food & drink · Getting around · Shopping ·
+                              #   Outdoors & sport · Culture & guides ·
+                              #   Lodging & logistics · Health & help
 roles:
   dojo_master: the maestro mezcalero, Don Eulogio, 60s, warm, proud of his craft
   learner: a curious visitor on a first trip to Oaxaca

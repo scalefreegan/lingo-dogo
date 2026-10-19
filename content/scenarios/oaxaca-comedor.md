@@ -4,6 +4,8 @@ title: Lunch at a neighborhood comedor
 summary: Ordering lunch at a small family comedor — asking what's in the mole, dietary questions, and paying.
 tags: [oaxaca, food, restaurant, travel]
 language: es-MX
+collection: Oaxaca trip
+category: Food & drink
 roles:
   dojo_master: Señora Lupe, who runs a small comedor out of her home near the Zócalo with her daughter, no printed menu, tells customers what's on today
   learner: a visitor who has walked in alone for the comida (midday meal) and doesn't know yet what's available

@@ -4,6 +4,8 @@ title: Mezcal tasting at a palenque
 summary: Visiting a small family palenque near Santiago Matatlán to taste mezcal with the maestro mezcalero.
 tags: [oaxaca, mezcal, travel]
 language: es-MX
+collection: Oaxaca trip
+category: Food & drink
 roles:
   dojo_master: el maestro mezcalero, Don Refugio, 60s, warm and quietly proud of his family's palenque, calm authority with dry humor
   learner: a curious visitor on a day trip from Oaxaca city, this is their first time at a palenque
