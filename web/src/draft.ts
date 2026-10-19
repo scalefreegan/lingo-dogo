@@ -214,15 +214,18 @@ export function packToDraft(pack: Pack): Draft {
 
 /* --------------------------------- ids ---------------------------------- */
 
+/** Case- and accent-insensitive form of a string ("Café" → "cafe"); the one
+ *  fold slugify and the Scene tab's search share. */
+export function fold(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 /** Lowercase ASCII kebab-case, accents folded ("Café en Oaxaca" →
  *  "cafe-en-oaxaca"); matches the server's id rule, and the server's own
  *  slugify in scripts/content.mjs, which renames a pack. `fallback` is what
  *  a title with no letters or digits becomes — "" lets a form refuse it. */
 export function slugify(s: string, fallback = "pack"): string {
-  const slug = s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
+  const slug = fold(s)
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)

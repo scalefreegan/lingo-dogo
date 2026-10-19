@@ -1,13 +1,35 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ContentReply, ProfileRequest } from "../types";
 import {
-  LEVELS, OVERRIDE_FIELDS, choosePickerValue, formatSessionLine, profileDefault, profileValue, sessionValues, type Draft, type OverrideKey,
+  LEVELS, OVERRIDE_FIELDS, choosePickerValue, fold, formatSessionLine, profileDefault, profileValue, sessionValues, type Draft, type OverrideKey,
 } from "../draft";
-import { Badge, Button, Card, inputClass } from "./ui";
+import { Button, Card, inputClass } from "./ui";
+
+const FILTER_KEY = "lingo-dojo.scene-filter.v1";
+/** Chip order; any other category a scenario uses follows alphabetically. */
+const CATEGORY_ORDER = ["Food & drink", "Getting around", "Shopping", "Outdoors & sport", "Culture & guides", "Lodging & logistics", "Health & help"];
+const OTHER_SCENES = "Other scenes";
+
+interface Filter {
+  query: string;
+  /** "" = All. */
+  category: string;
+}
+
+function loadFilter(): Filter {
+  try {
+    const f = JSON.parse(localStorage.getItem(FILTER_KEY) ?? "null") as Partial<Filter> | null;
+    return { query: typeof f?.query === "string" ? f.query : "", category: typeof f?.category === "string" ? f.category : "" };
+  } catch {
+    return { query: "", category: "" };
+  }
+}
 
 /* Scene tab: what the session is about (a library scenario or a quick one),
  * who it is for (the learner line, collapsed until you ask to change it),
- * and an optional note — set once, then move on to Customize. */
+ * and an optional note — set once, then move on to Customize. The scenes get
+ * the wide column (search, category chips, grouped grid); the learner and
+ * note sit in a sticky side column on desktop. */
 export default function SceneTab({
   content,
   draft,
@@ -24,32 +46,141 @@ export default function SceneTab({
   onNext: () => void;
 }) {
   const quick = draft.scenarioMode === "quick";
+  const { scenarios } = content;
+  const [filter, setFilterState] = useState<Filter>(loadFilter);
+  const setFilter = (f: Filter) => {
+    setFilterState(f);
+    try {
+      localStorage.setItem(FILTER_KEY, JSON.stringify(f));
+    } catch {
+      /* blocked storage: the filter just won't survive a refresh */
+    }
+  };
+  const clear = () => setFilter({ query: "", category: "" });
+
+  const categories = useMemo(() => {
+    const present = new Set(scenarios.map((s) => s.category).filter((c): c is string => !!c));
+    const known = CATEGORY_ORDER.filter((c) => present.has(c));
+    return [...known, ...[...present].filter((c) => !CATEGORY_ORDER.includes(c)).sort((a, b) => a.localeCompare(b))];
+  }, [scenarios]);
+  // A remembered chip for a category that no longer exists must not hide everything.
+  const category = categories.includes(filter.category) ? filter.category : "";
+  const needle = fold(filter.query.trim());
+
+  // Chip counts follow the search text, so they say what clicking would show.
+  const searched = useMemo(
+    () => scenarios.filter((s) => !needle || fold([s.title, s.summary, s.category ?? "", ...s.tags].join(" ")).includes(needle)),
+    [scenarios, needle],
+  );
+  const visible = category ? searched.filter((s) => s.category === category) : searched;
+  const groups = useMemo(() => {
+    const by = new Map<string, typeof visible>();
+    for (const s of visible) by.set(s.collection ?? "", [...(by.get(s.collection ?? "") ?? []), s]);
+    return [...by.entries()]
+      .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)))
+      .map(([name, items]) => ({ name: name || OTHER_SCENES, items }));
+  }, [visible]);
+
+  const filtering = needle !== "" || category !== "";
+  const selected = quick ? undefined : scenarios.find((s) => s.id === draft.scenario);
+  const hiddenSelected = selected && !visible.some((s) => s.id === selected.id) ? selected : undefined;
+  const pick = (id: string) => onChange({ ...draft, scenarioMode: "library", scenario: id });
 
   return (
     <div className="flex flex-col gap-6">
-      {content.scenarios.length === 0 && <p className="text-sm text-fg-3">No scenarios in content/scenarios yet.</p>}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {content.scenarios.map((s) => (
-          <ScenarioCard
-            key={s.id}
-            title={s.title}
-            summary={s.summary}
-            language={s.language}
-            selected={!quick && draft.scenario === s.id}
-            onClick={() => onChange({ ...draft, scenarioMode: "library", scenario: s.id })}
-          />
-        ))}
-        <QuickSceneCard
-          selected={quick}
-          value={draft.quickScenario}
-          onSelect={() => onChange({ ...draft, scenarioMode: "quick" })}
-          onChangeText={(text) => onChange({ ...draft, quickScenario: text, scenarioMode: "quick" })}
-          className={quick ? "sm:col-span-2 lg:col-span-3" : ""}
-        />
-      </div>
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-4">
+          {scenarios.length === 0 ? (
+            <p className="text-sm text-fg-3">No scenarios in content/scenarios yet.</p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="search"
+                    aria-label="Search scenes"
+                    className={`${inputClass} max-w-sm`}
+                    placeholder="Search scenes…"
+                    value={filter.query}
+                    onChange={(e) => setFilter({ ...filter, query: e.target.value })}
+                  />
+                  {filtering && (
+                    <button type="button" className="text-sm text-fg-3 hover:text-fg-2 hover:underline" onClick={clear}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+                {categories.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Category">
+                    <Chip label="All" count={searched.length} active={category === ""} onClick={() => setFilter({ ...filter, category: "" })} />
+                    {categories.map((c) => (
+                      <Chip
+                        key={c}
+                        label={c}
+                        count={searched.filter((s) => s.category === c).length}
+                        active={category === c}
+                        onClick={() => setFilter({ ...filter, category: c })}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              {hiddenSelected && (
+                <p className="text-sm text-fg-2" data-testid="hidden-selected">
+                  Selected: <span className="font-medium text-fg">{hiddenSelected.title}</span> (hidden by filter) ·{" "}
+                  <button type="button" className="text-accent hover:underline" onClick={clear}>
+                    Clear filters
+                  </button>
+                </p>
+              )}
+            </>
+          )}
 
-      <LearnerCard content={content} draft={draft} onChange={onChange} onSaveDefaults={onSaveDefaults} />
-      <NotesDisclosure draft={draft} onChange={onChange} />
+          <div className={GRID}>
+            <QuickSceneCard
+              selected={quick}
+              value={draft.quickScenario}
+              onSelect={() => onChange({ ...draft, scenarioMode: "quick" })}
+              onChangeText={(text) => onChange({ ...draft, quickScenario: text, scenarioMode: "quick" })}
+              className={quick ? "col-span-full" : ""}
+            />
+          </div>
+
+          {scenarios.length > 0 && visible.length === 0 && (
+            <div className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-sm text-fg-2">
+              <p className="font-medium text-fg">No scenes match</p>
+              <button type="button" className="mt-1 text-accent hover:underline" onClick={clear}>
+                Clear filters
+              </button>
+            </div>
+          )}
+
+          {groups.map((g) => (
+            <section key={g.name} aria-label={g.name} className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-fg">
+                {g.name} <span className="font-normal text-fg-3">· {g.items.length}</span>
+              </h3>
+              <div className={GRID}>
+                {g.items.map((s) => (
+                  <ScenarioCard
+                    key={s.id}
+                    title={s.title}
+                    summary={s.summary}
+                    category={s.category}
+                    selected={!quick && draft.scenario === s.id}
+                    onClick={() => pick(s.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-28">
+          <LearnerCard content={content} draft={draft} onChange={onChange} onSaveDefaults={onSaveDefaults} />
+          <NotesDisclosure draft={draft} onChange={onChange} />
+        </aside>
+      </div>
 
       <div className="flex justify-end">
         <Button variant="primary" onClick={onNext}>
@@ -60,16 +191,34 @@ export default function SceneTab({
   );
 }
 
+/** 4 columns at desktop width, down to 1 on a phone. */
+const GRID = "grid grid-cols-1 gap-2.5 sm:grid-cols-2 min-[1000px]:grid-cols-3 min-[1300px]:grid-cols-4";
+
+function Chip({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+        active ? "border-accent bg-accent-soft text-accent" : "border-line bg-panel text-fg-2 hover:border-line-strong"
+      }`}
+    >
+      {label} <span className={active ? "" : "text-fg-3"}>{count}</span>
+    </button>
+  );
+}
+
 function ScenarioCard({
   title,
   summary,
-  language,
+  category,
   selected,
   onClick,
 }: {
   title: string;
   summary: string;
-  language: string | null;
+  category: string | null;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -78,15 +227,13 @@ function ScenarioCard({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
+      className={`flex min-w-0 flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
         selected ? "border-accent bg-accent-soft" : "border-line bg-panel hover:border-line-strong"
       }`}
     >
-      <div className="flex w-full items-start justify-between gap-2">
-        <span className="font-medium text-fg">{title}</span>
-        {language && <Badge>{language}</Badge>}
-      </div>
-      <p className="line-clamp-1 text-sm text-fg-2">{summary}</p>
+      <span className="line-clamp-2 text-sm leading-snug font-medium text-fg">{title}</span>
+      <p className="w-full truncate text-xs text-fg-2">{summary}</p>
+      {category && <span className="mt-0.5 text-[11px] text-fg-3">{category}</span>}
     </button>
   );
 }
@@ -108,11 +255,11 @@ function QuickSceneCard({
 }) {
   return (
     <div
-      className={`flex flex-col gap-2 rounded-lg border p-3 transition-colors ${
+      className={`flex flex-col gap-1 rounded-lg border p-3 transition-colors ${
         selected ? "border-accent bg-accent-soft" : "border-line bg-panel hover:border-line-strong"
       } ${className}`}
     >
-      <button type="button" aria-pressed={selected} onClick={onSelect} className="text-left font-medium text-fg">
+      <button type="button" aria-pressed={selected} onClick={onSelect} className="text-left text-sm font-medium text-fg">
         Quick scene
       </button>
       {selected ? (
@@ -125,7 +272,7 @@ function QuickSceneCard({
           onChange={(e) => onChangeText(e.target.value)}
         />
       ) : (
-        <p className="text-sm text-fg-2">Describe a scene in your own words instead of picking one above.</p>
+        <p className="truncate text-xs text-fg-2">Describe a scene in your own words.</p>
       )}
     </div>
   );

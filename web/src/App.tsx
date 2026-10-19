@@ -279,7 +279,7 @@ export default function App() {
 
       {content && draft && pack ? (
         <main className="flex-1 p-4">
-          <div className="mx-auto flex w-full max-w-3xl flex-col">
+          <div className={`mx-auto flex w-full flex-col ${tab === "scene" ? "max-w-[1200px]" : "max-w-3xl"}`}>
             {tab === "scene" && (
               <SceneTab content={content} draft={draft} onChange={setDraft} onSaveDefaults={saveDefaults} onNext={() => setTab("customize")} />
             )}
