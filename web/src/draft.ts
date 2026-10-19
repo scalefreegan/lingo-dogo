@@ -15,7 +15,7 @@ export const OVERRIDE_FIELDS: { key: OverrideKey; label: string }[] = [
 
 /** CEFR, the level picker's options; a profile level outside the list is
  *  still shown (prepended), never silently replaced. */
-export const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+export const LEVELS = ["Kids", "A1", "A2", "B1", "B2", "C1", "C2"];
 
 export interface Draft {
   /** "" until saved or loaded. */

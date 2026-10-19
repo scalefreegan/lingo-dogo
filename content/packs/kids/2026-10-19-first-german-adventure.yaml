@@ -1,0 +1,32 @@
+title: First German adventure - the farm
+created: 2026-10-19T09:00:00-06:00
+scenario: kids-farm-animals
+quick_scenario: ""
+units:
+  - intro-kids
+  - narrator-native-rotating
+  - character-as-written
+  - warmup-kids-echo
+  - style-kids-playful
+  - difficulty-kids-simplest
+  - guidance-native
+  - correct-kids-playful
+  - debrief-kids-celebration
+overrides:
+  target_language: German
+  target_variant: Standard German (Germany)
+  level: Kids
+  learner_name: "(edit this file to set your son's name)"
+  goals: Learn a handful of German words and phrases through playful, audio-only practice - no reading involved.
+  notes: Keep everything playful and low-pressure; celebrate every attempt, however small.
+notes: |
+  Kids mode: a short, audio-only, playful session for a young beginner who
+  doesn't read yet. Everything is taught by ear through repetition, sound
+  effects, and copying - no reading required.
+
+  To use: set the learner_name above (the UI's profile popover doesn't edit
+  this field yet - edit the YAML directly, or open the pack and save it
+  again once you've set it via a future name field). Try the other five
+  Kids mode scenarios (treasure hunt, birthday counting, bedtime story,
+  snack time, superhero rescue) by changing the scenario id above or
+  picking them from the Scene tab.

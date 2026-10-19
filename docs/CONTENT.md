@@ -78,7 +78,7 @@ tags: [oaxaca, mezcal, travel]
 language: es-MX               # suggested target variant; profile can override
 collection: Oaxaca trip       # optional; Scene tab groups cards under this heading
 category: Food & drink        # optional; Scene tab filter chip. Use one of:
-                              #   Food & drink · Getting around · Shopping ·
+                              #   Kids & play · Food & drink · Getting around · Shopping ·
                               #   Outdoors & sport · Culture & guides ·
                               #   Lodging & logistics · Health & help
 roles:
