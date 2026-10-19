@@ -1,0 +1,42 @@
+version: 1
+slots:
+  - id: intro
+    title: Introduction
+    pick: one
+    required: true
+    description: How the session opens, and in which language.
+  - id: warmup
+    title: Warm-up
+    pick: any
+    required: false
+    description: Optional drills before the scene starts.
+  - id: style
+    title: Conversation style
+    pick: one
+    required: true
+    description: Overall pacing and tone of the conversation, e.g. natural flowing vs. slow and scaffolded.
+  - id: difficulty
+    title: Difficulty
+    pick: one
+    required: true
+    description: What is expected of the learner's spoken output.
+  - id: guidance
+    title: Guidance language
+    pick: one
+    required: true
+    description: Which language the dojo master uses when stepping out of character to guide.
+  - id: corrections
+    title: Corrections
+    pick: one
+    required: true
+    description: The policy for correcting the learner's errors.
+  - id: interrupts
+    title: Interrupts
+    pick: any
+    required: false
+    description: Mid-stream mini-lessons, breaks between scene sections, and vocabulary spotlights.
+  - id: debrief
+    title: Debrief
+    pick: any
+    required: false
+    description: How the session closes.
