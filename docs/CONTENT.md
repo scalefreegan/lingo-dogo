@@ -143,8 +143,13 @@ notes: |
   Today I'd like extra practice with prices and numbers.
 ```
 
-The filename is `<created date YYYY-MM-DD>-<slug of title>.yaml`. The pack's `id`
-is the filename stem.
+The filename is `<created date YYYY-MM-DD>-<slug of title>.yaml`. Packs may be
+grouped one level deep in subfolders of `content/packs/` (`content/packs/oaxaca/`).
+The pack's `id` is the path relative to `content/packs/` without the extension:
+`2026-10-19-palenque-first-visit` or `oaxaca/2026-10-19-palenque-first-visit`.
+Folder names and file stems are both kebab-case. An empty folder is kept on disk
+with a `.keep` file so it survives git. Every pack write, move, or delete made by
+the app is a git commit (`packs: <what>`), so nothing is lost: `git log -- content/packs`.
 
 ## `content/frame.md` — the fixed preamble
 

@@ -20,8 +20,9 @@ export const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 export interface Draft {
   /** "" until saved or loaded. */
   title: string;
-  /** The saved pack this draft came from; saving with the same title
-   *  overwrites it. Null for a new or cloned draft. */
+  /** The saved pack this draft came from (`<stem>` or `<folder>/<stem>`);
+   *  saving with the same title into the same folder overwrites it. Null for
+   *  a new or cloned draft. */
   sourceId: string | null;
   /** Kept from a loaded pack so an overwrite doesn't rewrite its date. */
   created: string;
@@ -184,8 +185,10 @@ export function packToDraft(pack: Pack): Draft {
 /* --------------------------------- ids ---------------------------------- */
 
 /** Lowercase ASCII kebab-case, accents folded ("Café en Oaxaca" →
- *  "cafe-en-oaxaca"); matches the server's id rule. */
-export function slugify(s: string): string {
+ *  "cafe-en-oaxaca"); matches the server's id rule, and the server's own
+ *  slugify in scripts/content.mjs, which renames a pack. `fallback` is what
+ *  a title with no letters or digits becomes — "" lets a form refuse it. */
+export function slugify(s: string, fallback = "pack"): string {
   const slug = s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -194,7 +197,19 @@ export function slugify(s: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)
     .replace(/-+$/, "");
-  return slug || "pack";
+  return slug || fallback;
+}
+
+/** `oaxaca/2026-10-19-x` → { folder: "oaxaca", stem: "2026-10-19-x" }; a
+ *  top-level id has folder "". Mirrors splitPackId in scripts/content.mjs. */
+export function splitPackId(id: string): { folder: string; stem: string } {
+  const i = id.indexOf("/");
+  return i === -1 ? { folder: "", stem: id } : { folder: id.slice(0, i), stem: id.slice(i + 1) };
+}
+
+/** The id of a stem in a folder ("" for the top level). */
+export function joinPackId(folder: string, stem: string): string {
+  return folder ? `${folder}/${stem}` : stem;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -212,7 +227,8 @@ export function localTimestamp(d = new Date()): string {
   return `${localDate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
 }
 
-/** The contract's pack id: `<YYYY-MM-DD>-<slug of title>`. */
+/** The contract's pack file stem: `<YYYY-MM-DD>-<slug of title>`. The id
+ *  adds the folder, if any (joinPackId). */
 export function packId(title: string, d = new Date()): string {
   return `${localDate(d)}-${slugify(title)}`;
 }

@@ -1,18 +1,28 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import { REPO_ROOT, contentRoot } from "../../scripts/content.mjs";
+import { REPO_ROOT, contentRoot, packsDir } from "../../scripts/content.mjs";
 import type { ChatCommit } from "../shared/wire.ts";
 
-// Auto-commit of content/ after an agent turn, so every change the agent
-// makes is one `git log` entry and one `git revert` away. Only content/ is
-// ever staged: the rest of the working tree may be dirty with the user's own
-// work and must stay that way. Never a push.
+// Auto-commit of content/ after an agent turn, and of content/packs after
+// every pack write the UI makes, so each change is one `git log` entry and
+// one `git revert` away. Only the directory in question is ever staged: the
+// rest of the working tree may be dirty with the user's own work and must
+// stay that way. Never a push.
 
 const execFileP = promisify(execFile);
 
+/** The repository the commits go into: LINGO_REPO_ROOT when set (resolved
+ *  against the repo root; the HTTP test points it at a throwaway repo around
+ *  its scratch content dir so nothing lands in this one), else this repo.
+ *  Read per call, like contentRoot(). */
+export function gitRoot(): string {
+  const override = process.env.LINGO_REPO_ROOT;
+  return override ? path.resolve(REPO_ROOT, override) : REPO_ROOT;
+}
+
 /** Every git call is execFile with an argv — never a shell string, since the
- *  commit subject is agent-written text. */
+ *  commit subject is agent-written text or a pack title. */
 async function git(args: string[], cwd: string): Promise<string> {
   const { stdout } = await execFileP("git", args, { cwd, maxBuffer: 1 << 20 });
   return stdout;
@@ -40,28 +50,39 @@ export function commitSubject(reply: string): string {
 }
 
 /**
- * Stage and commit whatever changed under the content directory. Resolves to
- * the SSE `commit` payload rather than throwing: a failed commit must reach
- * the UI as a line the user can read, not take down the stream after the
- * reply already went out.
+ * Stage and commit whatever changed under `dir` as `<prefix>: <summary>`.
+ * Resolves to the `commit` payload rather than throwing: a failed commit must
+ * reach the UI as a line the user can read — the write it was recording has
+ * already happened — not take down the response (for the chat, a stream the
+ * reply already went out on).
  */
-export async function commitContent(reply: string, { repoRoot = REPO_ROOT, contentDir = contentRoot() } = {}): Promise<ChatCommit> {
+async function commitDir(prefix: string, summary: string, dir: string, root: string): Promise<ChatCommit> {
   // A pathspec relative to the repo, so `git status`/`add`/`commit` all name
-  // the same tree regardless of how contentDir was spelled.
-  const spec = path.relative(repoRoot, contentDir) || ".";
+  // the same tree regardless of how dir was spelled.
+  const spec = path.relative(root, dir) || ".";
   try {
-    const status = await git(["status", "--porcelain", "--", spec], repoRoot);
+    const status = await git(["status", "--porcelain", "--", spec], root);
     if (!status.trim()) return { skipped: true };
-    const summary = commitSubject(reply);
-    // -A so a file the agent deleted or renamed is staged too; the pathspec
+    // -A so a file that was deleted or renamed is staged too; the pathspec
     // on `commit` means only these paths are recorded, leaving anything the
     // user had staged elsewhere in the index exactly as it was.
-    await git(["add", "-A", "--", spec], repoRoot);
-    await git(["commit", "-q", "-m", `agent: ${summary}`, "--", spec], repoRoot);
-    const hash = (await git(["rev-parse", "--short", "HEAD"], repoRoot)).trim();
+    await git(["add", "-A", "--", spec], root);
+    await git(["commit", "-q", "-m", `${prefix}: ${summary}`, "--", spec], root);
+    const hash = (await git(["rev-parse", "--short", "HEAD"], root)).trim();
     return { hash, summary };
   } catch (e) {
     const err = e as Error & { stderr?: string };
     return { error: (err.stderr || err.message || String(e)).trim().slice(0, 500) };
   }
+}
+
+/** After an agent turn: `agent: <last line of the reply>`, staging content/. */
+export function commitContent(reply: string, { repoRoot = gitRoot(), contentDir = contentRoot() } = {}): Promise<ChatCommit> {
+  return commitDir("agent", commitSubject(reply), contentDir, repoRoot);
+}
+
+/** After a pack save, move, rename or delete from the UI: `packs: <what>`,
+ *  staging content/packs only. `what` is a phrase like "saved oaxaca/2026-10-19-x". */
+export function commitPacks(what: string, { repoRoot = gitRoot(), dir = packsDir() } = {}): Promise<ChatCommit> {
+  return commitDir("packs", what, dir, repoRoot);
 }

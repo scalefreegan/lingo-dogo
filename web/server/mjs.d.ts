@@ -20,20 +20,35 @@
 // declaration inside a module is an augmentation, which tsc refuses.
 
 declare module "*/scripts/content.mjs" {
-  /** Kebab-case id: the guard on every pack/export id from a request. */
+  /** One kebab-case segment: the guard on export ids and folder names. */
   export const ID_RE: RegExp;
+  /** `<stem>` or `<folder>/<stem>`: the guard on pack ids from a request. */
+  export const PACK_ID_RE: RegExp;
   /** Absolute path of the repo (from import.meta.url, never process.cwd()). */
   export const REPO_ROOT: string;
   export function contentRoot(): string;
   export function exportsDir(): string;
+  export function packsDir(root?: string): string;
   /** Never throws; bad files land in `problems`. */
   export function loadContent(root?: string): import("../shared/wire.ts").ContentReply & {
     packs: import("../shared/wire.ts").Pack[];
   };
-  /** Throws on an id ID_RE rejects or a path outside content/packs. */
+  /** Throws on an id PACK_ID_RE rejects or a path outside content/packs. */
   export function savePack(id: string, pack: unknown, root?: string): string;
   /** False when there was no such pack. Throws on a bad id. */
   export function deletePack(id: string, root?: string): boolean;
+  // The folder operations and the pack moves throw an Error whose `code` is
+  // an errno name — EINVAL (bad name or id), ENOENT, EEXIST, ENOTEMPTY — which
+  // the routes map to a status.
+  /** Every directory under content/packs, sorted. */
+  export function listFolders(root?: string): string[];
+  export function createFolder(name: string, root?: string): string;
+  /** False when there was no such folder; ENOTEMPTY when it holds a pack. */
+  export function deleteFolder(name: string, root?: string): boolean;
+  /** Returns the new id. "" moves the pack to the top level. */
+  export function movePack(id: string, folder: string, root?: string): string;
+  /** Returns the new id (`<date>-<slug of title>` in the same folder). */
+  export function renamePack(id: string, title: string, root?: string): string;
   /** Merges the patch into content/profile.yaml in place (a blank value
    *  removes the key). Throws when the existing file is not a YAML mapping. */
   export function saveProfile(patch: import("../shared/wire.ts").ProfileRequest, root?: string): string;

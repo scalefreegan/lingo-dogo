@@ -5,8 +5,8 @@
 
 import type {
   AssembleResult, ChatCommit, ChatDone, ChatError, ChatHeartbeat, ChatHistoryReply, ChatReply, ChatRequest, ChatStart,
-  ContentReply, ExportRequest, ExportResult, PackInput, PackReply, PacksReply, ProfileReply, ProfileRequest,
-  SettingsReply, SettingsRequest,
+  ContentReply, ExportRequest, ExportResult, FolderDeleteReply, FolderReply, FolderRequest, PackDeleteReply, PackInput,
+  PackMoveRequest, PackRenameRequest, PackWriteReply, PacksReply, ProfileReply, ProfileRequest, SettingsReply, SettingsRequest,
 } from "./types";
 
 /** A non-2xx reply; `message` is the server's `{error}` sentence. */
@@ -49,13 +49,47 @@ export function saveProfile(patch: ProfileRequest): Promise<ProfileReply> {
   return req<ProfileReply>("/api/profile", json(patch, "PUT"));
 }
 
+/* --------------------------------- packs --------------------------------- */
+
+/** A pack id in a URL: each segment encoded on its own, so the one slash of
+ *  a folder id stays a path separator. */
+function packUrl(id: string): string {
+  return `/api/packs/${id.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/** GET /api/packs — the saved packs and the folders under content/packs. */
 export function listPacks(): Promise<PacksReply> {
   return req<PacksReply>("/api/packs");
 }
 
-/** PUT /api/packs/:id — creates or overwrites content/packs/<id>.yaml. */
-export function savePack(id: string, pack: PackInput): Promise<PackReply> {
-  return req<PackReply>(`/api/packs/${encodeURIComponent(id)}`, json(pack, "PUT"));
+/** PUT /api/packs/:id — creates or overwrites content/packs/<id>.yaml and
+ *  commits it. Every write below answers with the pack as it reads back and
+ *  the commit that recorded it (see Committed in the wire types). */
+export function savePack(id: string, pack: PackInput): Promise<PackWriteReply> {
+  return req<PackWriteReply>(packUrl(id), json(pack, "PUT"));
+}
+
+export function deletePack(id: string): Promise<PackDeleteReply> {
+  return req<PackDeleteReply>(packUrl(id), { method: "DELETE" });
+}
+
+/** POST /api/packs/:id/move — "" for the top level; the reply's pack.id is the new id. */
+export function movePack(id: string, folder: string): Promise<PackWriteReply> {
+  return req<PackWriteReply>(`${packUrl(id)}/move`, json({ folder } satisfies PackMoveRequest));
+}
+
+/** POST /api/packs/:id/rename — new title, and a file renamed to match. */
+export function renamePack(id: string, title: string): Promise<PackWriteReply> {
+  return req<PackWriteReply>(`${packUrl(id)}/rename`, json({ title } satisfies PackRenameRequest));
+}
+
+export function createFolder(name: string): Promise<FolderReply> {
+  return req<FolderReply>("/api/folders", json({ name } satisfies FolderRequest));
+}
+
+/** DELETE /api/folders/:name — refused (409) unless the folder is empty. */
+export function deleteFolder(name: string): Promise<FolderDeleteReply> {
+  return req<FolderDeleteReply>(`/api/folders/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 export function assemblePack(pack: PackInput, signal?: AbortSignal): Promise<AssembleResult> {

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, assemblePack, getContent, listPacks, savePack, saveProfile } from "./api";
-import type { AssembleResult, ContentReply, Pack, PackInput, PacksReply, Problem, ProfileRequest } from "./types";
-import { draftToPack, emptyOverrides, localTimestamp, newDraft, packId, packToDraft, type Draft } from "./draft";
+import {
+  ApiError, assemblePack, createFolder, deleteFolder, deletePack, getContent, listPacks, movePack, renamePack, savePack, saveProfile,
+} from "./api";
+import type { AssembleResult, Committed, ContentReply, Pack, PackInput, PacksReply, Problem, ProfileRequest } from "./types";
+import { draftToPack, emptyOverrides, joinPackId, localTimestamp, newDraft, packId, packToDraft, splitPackId, type Draft } from "./draft";
 import ScenarioColumn from "./components/ScenarioColumn";
 import SlotsColumn from "./components/SlotsColumn";
-import PreviewColumn, { type SaveOutcome } from "./components/PreviewColumn";
+import PreviewColumn, { type PackStatus, type SaveOutcome } from "./components/PreviewColumn";
 import AgentDrawer from "./components/AgentDrawer";
 import { Button } from "./components/ui";
 
@@ -15,6 +17,10 @@ const ASSEMBLE_DELAY_MS = 200;
 export default function App() {
   const [content, setContent] = useState<ContentReply | null>(null);
   const [packs, setPacks] = useState<Pack[]>([]);
+  const [folders, setFolders] = useState<string[]>([]);
+  // The one-line outcome of the last pack action (save, move, rename, delete,
+  // folder), with the commit that recorded it.
+  const [packStatus, setPackStatus] = useState<PackStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
   // Bumped by every content reload so the preview re-assembles against the
@@ -27,11 +33,12 @@ export default function App() {
   // derived from it rather than flagged from inside the effect, so the effect
   // only ever sets state from its async callbacks.
   const [settled, setSettled] = useState<{ pack: PackInput; version: number } | null>(null);
-  const [saveRequest, setSaveRequest] = useState<{ title: string; seq: number } | null>(null);
+  const [saveRequest, setSaveRequest] = useState<{ title: string; folder: string; seq: number } | null>(null);
 
   const applyLoad = useCallback((c: ContentReply, p: PacksReply) => {
     setContent(c);
     setPacks(p.packs);
+    setFolders(p.folders);
     setLoadError(null);
     setContentVersion((v) => v + 1);
     // The first load starts a new pack from the library's defaults; later
@@ -96,21 +103,85 @@ export default function App() {
     return content.scenarios.find((s) => s.id === pack.scenario)?.title ?? "";
   }, [content, pack]);
 
-  async function save(title: string, overwrite: boolean): Promise<SaveOutcome> {
-    if (!draft || !pack) return { ok: false, error: "nothing to save" };
-    // Same title as the pack it was loaded from → update that file in place;
-    // a new title is a new file named for today.
-    const id = draft.sourceId && title === draft.title ? draft.sourceId : packId(title);
-    if (!overwrite && id !== draft.sourceId && packs.some((p) => p.id === id)) return { ok: false, conflict: id };
-    const created = id === draft.sourceId && draft.created ? draft.created : localTimestamp();
+  /** Re-list after any pack write, so the library shows what is on disk. */
+  async function refreshPacks() {
+    const p = await listPacks();
+    setPacks(p.packs);
+    setFolders(p.folders);
+  }
+
+  /** The status line after a pack write: what happened and the commit that
+   *  recorded it — or that git did not, which deserves a look at the terminal. */
+  function report(what: string, c: Committed): PackStatus {
+    if (c.error) return { tone: "err", text: `${what} — ${c.error}` };
+    return { tone: "ok", text: c.commit ? `${what} (committed ${c.commit.hash})` : `${what} (nothing to commit)` };
+  }
+
+  /** Run a pack action, then re-list and show the outcome either way.
+   *  Resolves to whether it succeeded, so an inline form knows to close. */
+  async function act(run: () => Promise<PackStatus>): Promise<boolean> {
     try {
-      const { pack: saved } = await savePack(id, { ...pack, title, created });
-      setDraft((d) => (d ? { ...d, title: saved.title, sourceId: saved.id, created: saved.created } : d));
-      setPacks((await listPacks()).packs);
-      return { ok: true, id: saved.id };
+      const status = await run();
+      await refreshPacks();
+      setPackStatus(status);
+      return true;
+    } catch (e) {
+      setPackStatus({ tone: "err", text: e instanceof ApiError ? e.message : String(e) });
+      return false;
+    }
+  }
+
+  async function save(title: string, folder: string, overwrite: boolean): Promise<SaveOutcome> {
+    if (!draft || !pack) return { ok: false, error: "nothing to save" };
+    // Same title and folder as the pack it was loaded from → update that file
+    // in place; a new title or folder is a new file named for today.
+    const src = draft.sourceId;
+    const id = src != null && title === draft.title && folder === splitPackId(src).folder ? src : joinPackId(folder, packId(title));
+    if (!overwrite && id !== src && packs.some((p) => p.id === id)) return { ok: false, conflict: id };
+    const created = id === src && draft.created ? draft.created : localTimestamp();
+    try {
+      const r = await savePack(id, { ...pack, title, created });
+      setDraft((d) => (d ? { ...d, title: r.pack.title, sourceId: r.pack.id, created: r.pack.created } : d));
+      await refreshPacks();
+      setPackStatus(report(`Saved ${r.pack.id}`, r));
+      return { ok: true, id: r.pack.id };
     } catch (e) {
       return { ok: false, error: e instanceof ApiError ? e.message : String(e) };
     }
+  }
+
+  function move(id: string, folder: string) {
+    return act(async () => {
+      const r = await movePack(id, folder);
+      setDraft((d) => (d && d.sourceId === id ? { ...d, sourceId: r.pack.id } : d));
+      return report(`Moved ${id} to ${folder || "no folder"}`, r);
+    });
+  }
+
+  function rename(id: string, title: string) {
+    return act(async () => {
+      const r = await renamePack(id, title);
+      setDraft((d) => (d && d.sourceId === id ? { ...d, sourceId: r.pack.id, title: r.pack.title } : d));
+      return report(`Renamed ${id} to ${r.pack.id}`, r);
+    });
+  }
+
+  function remove(id: string) {
+    return act(async () => {
+      const r = await deletePack(id);
+      // The draft keeps its content but is no longer "the saved pack": a
+      // later save writes a new file rather than quietly resurrecting this one.
+      setDraft((d) => (d && d.sourceId === id ? { ...d, sourceId: null } : d));
+      return report(`Deleted ${id}`, r);
+    });
+  }
+
+  function addFolder(name: string) {
+    return act(async () => report(`Created folder ${name}`, await createFolder(name)));
+  }
+
+  function removeFolder(name: string) {
+    return act(async () => report(`Deleted folder ${name}`, await deleteFolder(name)));
   }
 
   /** "Save as my defaults": write the pickers' values to profile.yaml, reload
@@ -134,11 +205,12 @@ export default function App() {
   }
 
   /** Clone = load under a new title: detached from the original file, with
-   *  the save form open so the copy gets its own name. */
+   *  the save form open so the copy gets its own name (in the same folder,
+   *  until the form says otherwise). */
   function clone(p: Pack) {
     const title = `${p.title} (copy)`;
     setDraft({ ...packToDraft(p), title, sourceId: null, created: "" });
-    setSaveRequest((r) => ({ title, seq: (r?.seq ?? 0) + 1 }));
+    setSaveRequest((r) => ({ title, folder: p.folder, seq: (r?.seq ?? 0) + 1 }));
   }
 
   function startNew() {
@@ -179,15 +251,22 @@ export default function App() {
               pack={pack}
               title={draft.title}
               sourceId={draft.sourceId}
-              exportId={draft.sourceId ?? packId(draft.title || scenarioTitle || "session")}
+              exportId={draft.sourceId ? splitPackId(draft.sourceId).stem : packId(draft.title || scenarioTitle || "session")}
               result={result}
               pending={assembling}
               error={assembleError}
               packs={packs}
+              folders={folders}
+              packStatus={packStatus}
               saveRequest={saveRequest}
               onSave={save}
               onLoad={load}
               onClone={clone}
+              onMove={move}
+              onRename={rename}
+              onDelete={remove}
+              onCreateFolder={addFolder}
+              onDeleteFolder={removeFolder}
             />
           </div>
         </main>

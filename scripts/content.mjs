@@ -36,9 +36,30 @@ export function exportsDir() {
   return override ? path.resolve(REPO_ROOT, override) : path.join(REPO_ROOT, "exports");
 }
 
-/** Pack and export ids: the filename stem, kebab-case, no dots or slashes —
- *  the one check that keeps a request-supplied id inside its directory. */
+/** One path segment — an export id, a pack folder name, a pack file stem:
+ *  kebab-case, no dots or slashes. The one check that keeps a
+ *  request-supplied name inside its directory. */
 export const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+/** A pack id: `<stem>` or `<folder>/<stem>`, each segment an ID_RE. One
+ *  level of folders and no more (docs/CONTENT.md). */
+export const PACK_ID_RE = /^(?:[a-z0-9][a-z0-9-]*\/)?[a-z0-9][a-z0-9-]*$/;
+
+/** `oaxaca/2026-10-19-x` → { folder: "oaxaca", stem: "2026-10-19-x" };
+ *  a top-level id has folder "". Pure string work, no validation. */
+export function splitPackId(id) {
+  const i = id.indexOf("/");
+  return i === -1 ? { folder: "", stem: id } : { folder: id.slice(0, i), stem: id.slice(i + 1) };
+}
+
+/** An error the API can turn into a status: `code` is a Node errno name
+ *  (ENOENT → 404, EEXIST and ENOTEMPTY → 409, EINVAL → 400), so a fs error
+ *  and a check made here read the same way to the caller. */
+function fail(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  return e;
+}
 
 export const PICKS = ["one", "any"];
 
@@ -165,13 +186,23 @@ export function loadContent(root = contentRoot()) {
     if (scenario) scenarios.push(scenario);
   }
 
+  // Packs sit at the top of content/packs or one folder down; anything
+  // deeper is ignored, like a dot-directory. Sorted by id so the list is
+  // stable whatever order the folders were read in.
   const packs = [];
-  const packsDir = path.join(root, "packs");
-  for (const name of listDir(packsDir, ".yaml")) {
-    const { pack, problems: packProblems } = loadPackFile(path.join(packsDir, name));
-    problems.push(...packProblems);
-    if (pack) packs.push(pack);
-  }
+  const dir = packsDir(root);
+  const loadPacksIn = (folder) => {
+    const sub = folder ? path.join(dir, folder) : dir;
+    for (const name of listDir(sub, ".yaml")) {
+      const stem = name.slice(0, -".yaml".length);
+      const { pack, problems: packProblems } = loadPackFile(path.join(sub, name), folder ? `${folder}/${stem}` : stem);
+      problems.push(...packProblems);
+      if (pack) packs.push(pack);
+    }
+  };
+  loadPacksIn("");
+  for (const folder of listFolders(root)) loadPacksIn(folder);
+  packs.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   return { root, schema, frame, profile, languages, units, scenarios, packs, problems };
 }
@@ -353,12 +384,13 @@ function loadScenario(abs, report) {
 
 /**
  * Read one pack file (used by the loader for content/packs and by the CLI for
- * whatever path it is given). The pack's id is the filename stem. Returns
- * `{ pack, problems }`, with `pack` null when the file is unusable.
- * Unknown unit or scenario ids are not checked here: that is the assembler's
- * warning, since it depends on the library, not on the file.
+ * whatever path it is given). The pack's id is the filename stem unless the
+ * caller says otherwise (the loader passes `<folder>/<stem>` for a pack in a
+ * folder). Returns `{ pack, problems }`, with `pack` null when the file is
+ * unusable. Unknown unit or scenario ids are not checked here: that is the
+ * assembler's warning, since it depends on the library, not on the file.
  */
-export function loadPackFile(abs) {
+export function loadPackFile(abs, id = path.basename(abs).replace(/\.ya?ml$/, "")) {
   const problems = [];
   const report = (level, message) => problems.push({ file: displayPath(abs), level, message });
   const raw = loadYamlFile(abs, (_f, level, message) => report(level, message));
@@ -371,11 +403,12 @@ export function loadPackFile(abs) {
     report("error", "missing required key(s): title");
     return { pack: null, problems };
   }
-  const stem = path.basename(abs).replace(/\.ya?ml$/, "");
-  if (!ID_RE.test(stem)) report("warning", `filename "${stem}" is not a valid pack id (lowercase letters, digits, hyphens); the app cannot save over it`);
+  if (!PACK_ID_RE.test(id)) report("warning", `"${id}" is not a valid pack id (lowercase letters, digits, hyphens; at most one folder); the app cannot save over, move, rename or delete it`);
   if (raw.units != null && !Array.isArray(raw.units)) report("warning", "units should be a list of unit ids; ignored");
   if (raw.overrides != null && !isObj(raw.overrides)) report("warning", "overrides should be a mapping of profile keys; ignored");
-  return { pack: normalizePack(raw, stem), problems };
+  const pack = normalizePack(raw, id);
+  pack.folder = splitPackId(id).folder;
+  return { pack, problems };
 }
 
 /**
@@ -401,14 +434,15 @@ export function normalizePack(raw, id) {
 
 /* ------------------------------ pack files ------------------------------- */
 
-/** Resolve `<dir>/<id><ext>` and prove it stays inside `dir`. The id regex
- *  already rules out `/` and `..`; this is the second lock, so a future
- *  loosening of ID_RE cannot turn into a write outside the directory. */
+/** Resolve `<dir>/<id><ext>` (one segment, for exports) and prove it stays
+ *  inside `dir`. The id regex already rules out `/` and `..`; this is the
+ *  second lock, so a future loosening of ID_RE cannot turn into a write
+ *  outside the directory. */
 export function safeJoin(dir, id, ext) {
-  if (typeof id !== "string" || !ID_RE.test(id)) throw new Error(`invalid id: ${JSON.stringify(id)}`);
+  if (typeof id !== "string" || !ID_RE.test(id)) throw fail("EINVAL", `invalid id: ${JSON.stringify(id)}`);
   const base = path.resolve(dir);
   const abs = path.resolve(base, `${id}${ext}`);
-  if (path.dirname(abs) !== base) throw new Error(`path escapes ${base}: ${abs}`);
+  if (path.dirname(abs) !== base) throw fail("EINVAL", `path escapes ${base}: ${abs}`);
   return abs;
 }
 
@@ -416,26 +450,63 @@ export function packsDir(root = contentRoot()) {
   return path.join(root, "packs");
 }
 
+/** Resolve content/packs/<id>.yaml for a pack id (`stem` or `folder/stem`)
+ *  and prove it stays inside content/packs, at most one level down. Same
+ *  two-lock shape as safeJoin: PACK_ID_RE rules out `..`, a leading slash and
+ *  a second folder; the path check is there so a loosening of the regex
+ *  cannot become a write outside the directory. */
+export function packPath(id, root = contentRoot()) {
+  if (typeof id !== "string" || !PACK_ID_RE.test(id)) {
+    throw fail("EINVAL", `invalid id ${JSON.stringify(id)}: use lowercase letters, digits and hyphens, with at most one folder`);
+  }
+  const base = path.resolve(packsDir(root));
+  const abs = path.resolve(base, `${id}.yaml`);
+  const rel = path.relative(base, abs);
+  if (rel.startsWith("..") || path.isAbsolute(rel) || rel.split(path.sep).length > 2) throw fail("EINVAL", `path escapes ${base}: ${abs}`);
+  return abs;
+}
+
+/** Resolve content/packs/<name> for a folder name and prove it is a direct
+ *  child of content/packs. */
+function folderPath(name, root) {
+  if (typeof name !== "string" || !ID_RE.test(name)) {
+    throw fail("EINVAL", `invalid folder name ${JSON.stringify(name)}: use lowercase letters, digits and hyphens`);
+  }
+  const base = path.resolve(packsDir(root));
+  const abs = path.resolve(base, name);
+  if (path.dirname(abs) !== base) throw fail("EINVAL", `path escapes ${base}: ${abs}`);
+  return abs;
+}
+
 /** The keys a pack file carries, in the contract's order; anything else the
  *  caller sent rides along after them (unknown keys are preserved). */
 const PACK_KEYS = ["title", "created", "scenario", "quick_scenario", "units", "overrides", "notes"];
 
-/** Write content/packs/<id>.yaml. Returns the absolute path. */
-export function savePack(id, raw, root = contentRoot()) {
-  const abs = safeJoin(packsDir(root), id, ".yaml");
+/** Serialise a pack-shaped value to `abs` (mkdir -p). The id and folder are
+ *  the path on disk; storing them in the file too invites the two to disagree. */
+function writePackFile(abs, raw) {
   const pack = normalizePack(raw);
-  delete pack.id; // the filename is the id; storing it too invites the two to disagree
+  delete pack.id;
+  delete pack.folder;
   const ordered = {};
   for (const k of PACK_KEYS) ordered[k] = pack[k];
   for (const [k, v] of Object.entries(pack)) if (!(k in ordered)) ordered[k] = v;
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, YAML.stringify(ordered));
+}
+
+/** Write content/packs/<id>.yaml, creating the folder if the id names one
+ *  that does not exist yet. Returns the absolute path. */
+export function savePack(id, raw, root = contentRoot()) {
+  const abs = packPath(id, root);
+  writePackFile(abs, raw);
   return abs;
 }
 
-/** Delete content/packs/<id>.yaml. Returns false when there was no such pack. */
+/** Delete content/packs/<id>.yaml. Returns false when there was no such pack.
+ *  The folder it was in is left alone, even when now empty. */
 export function deletePack(id, root = contentRoot()) {
-  const abs = safeJoin(packsDir(root), id, ".yaml");
+  const abs = packPath(id, root);
   try {
     fs.unlinkSync(abs);
     return true;
@@ -443,6 +514,119 @@ export function deletePack(id, root = contentRoot()) {
     if (e?.code === "ENOENT") return false;
     throw e;
   }
+}
+
+/* ------------------------------- folders --------------------------------- */
+
+/** The folders under content/packs, sorted: every directory that is not a
+ *  dot-directory, whether or not it holds a pack yet. A missing packs/ is no
+ *  folders. */
+export function listFolders(root = contentRoot()) {
+  let entries;
+  try {
+    entries = fs.readdirSync(packsDir(root), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries.filter((d) => d.isDirectory() && !d.name.startsWith(".")).map((d) => d.name).sort();
+}
+
+/** mkdir content/packs/<name> with a `.keep` inside, so the empty folder
+ *  survives git. EEXIST when there is already something by that name. */
+export function createFolder(name, root = contentRoot()) {
+  const abs = folderPath(name, root);
+  if (fs.existsSync(abs)) throw fail("EEXIST", `folder "${name}" already exists`);
+  fs.mkdirSync(abs, { recursive: true });
+  fs.writeFileSync(path.join(abs, ".keep"), "");
+  return abs;
+}
+
+/** Remove content/packs/<name>, but only when nothing is in it apart from
+ *  the `.keep` (ENOTEMPTY otherwise: a pack is never deleted as a side
+ *  effect). Returns false when there was no such folder. */
+export function deleteFolder(name, root = contentRoot()) {
+  const abs = folderPath(name, root);
+  let entries;
+  try {
+    entries = fs.readdirSync(abs);
+  } catch (e) {
+    if (e?.code === "ENOENT") return false;
+    throw e;
+  }
+  const rest = entries.filter((n) => n !== ".keep");
+  if (rest.length) throw fail("ENOTEMPTY", `folder "${name}" is not empty (${rest.length} item${rest.length === 1 ? "" : "s"}); move or delete its packs first`);
+  fs.rmSync(abs, { recursive: true });
+  return true;
+}
+
+/** Move content/packs/<id>.yaml into `folder` ("" for the top level): a
+ *  rename, so the file's text is untouched. Returns the new id. ENOENT when
+ *  there is no such pack, EEXIST when the destination already has one with
+ *  that stem (nothing is overwritten by a move). Moving a pack to where it
+ *  already is returns its id and changes nothing. */
+export function movePack(id, folder, root = contentRoot()) {
+  const from = packPath(id, root);
+  if (typeof folder !== "string") throw fail("EINVAL", "folder must be a string (\"\" for no folder)");
+  const target = folder ? `${folder}/${splitPackId(id).stem}` : splitPackId(id).stem;
+  const to = packPath(target, root);
+  if (to === from) return target;
+  if (!fs.existsSync(from)) throw fail("ENOENT", `no pack "${id}"`);
+  if (fs.existsSync(to)) throw fail("EEXIST", `a pack "${target}" already exists`);
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.renameSync(from, to);
+  return target;
+}
+
+/** Lowercase ASCII kebab-case, accents folded ("Café en Oaxaca" →
+ *  "cafe-en-oaxaca"). The same rule as the UI's slugify in web/src/draft.ts,
+ *  which names a new pack; this one renames an existing one. */
+export function slugify(s) {
+  const slug = s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/, "");
+  return slug || "pack";
+}
+
+const pad = (n) => String(n).padStart(2, "0");
+function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * Give the pack a new title and the filename that goes with it: the stem
+ * becomes `<date>-<slug of title>`, keeping the date the stem already had (a
+ * pack stays sorted where it was), else the date in `created`, else today.
+ * The folder is kept. Returns the new id. EEXIST when another pack already
+ * has the new name; a title whose slug does not change rewrites the file in
+ * place. The file is re-serialised the way savePack writes it.
+ */
+export function renamePack(id, title, root = contentRoot()) {
+  const from = packPath(id, root);
+  if (typeof title !== "string" || !title.trim()) throw fail("EINVAL", "a pack needs a title");
+  const read = readText(from);
+  if (read.error) throw fail(read.error === "file is missing" ? "ENOENT" : "EIO", `no pack "${id}": ${read.error}`);
+  let raw;
+  try {
+    raw = YAML.parse(read.text);
+  } catch (e) {
+    throw fail("EINVAL", `${displayPath(from)} is not valid YAML (${firstLine(e)}); fix it before renaming`);
+  }
+  if (!isObj(raw)) throw fail("EINVAL", `${displayPath(from)} must be a YAML mapping; fix it before renaming`);
+  const { folder, stem } = splitPackId(id);
+  const created = typeof raw.created === "string" ? raw.created : raw.created instanceof Date ? raw.created.toISOString() : "";
+  const date = stem.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? created.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? localDate();
+  const newStem = `${date}-${slugify(title)}`;
+  const target = folder ? `${folder}/${newStem}` : newStem;
+  const to = packPath(target, root);
+  if (to !== from && fs.existsSync(to)) throw fail("EEXIST", `a pack "${target}" already exists`);
+  writePackFile(to, { ...raw, title: title.trim() });
+  if (to !== from) fs.unlinkSync(from);
+  return target;
 }
 
 /* -------------------------------- profile -------------------------------- */

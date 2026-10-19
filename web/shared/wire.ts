@@ -151,21 +151,72 @@ export interface PackInput {
   notes: string;
 }
 
-/** A saved pack: the file plus its id (the filename stem). */
+/** A saved pack: the file plus its id — the path under content/packs
+ *  without .yaml, `<stem>` or `<folder>/<stem>` — and the folder it is in
+ *  ("" at the top level). */
 export interface Pack extends PackInput {
   id: string;
+  folder: string;
 }
 
-/** GET /api/packs — sorted by id (so by date, oldest first). `problems` are
- *  the pack files that failed to load. */
+/** GET /api/packs — packs sorted by id (top-level ones first, by date);
+ *  `folders` is every directory under content/packs, an empty one included,
+ *  sorted. `problems` are the pack files that failed to load. */
 export interface PacksReply {
   packs: Pack[];
+  folders: string[];
   problems: Problem[];
 }
 
-/** GET/PUT /api/packs/:id */
+/** GET /api/packs/:id */
 export interface PackReply {
   pack: Pack;
+}
+
+/** The git half of a pack write (the server commits content/packs after
+ *  each one as `packs: <summary>`). `commit` is null when there was nothing
+ *  to commit (an identical save) or when git failed; only the failure sets
+ *  `error`. Either way the write itself succeeded — this rides on a 200. */
+export interface Committed {
+  commit: { hash: string; summary: string } | null;
+  error?: string;
+}
+
+/** PUT /api/packs/:id, POST /api/packs/:id/move and /rename: the pack as it
+ *  reads back from disk (after a move or rename, `pack.id` is the new id). */
+export interface PackWriteReply extends PackReply, Committed {}
+
+/** DELETE /api/packs/:id */
+export interface PackDeleteReply extends Committed {
+  ok: true;
+}
+
+/** POST /api/packs/:id/move — "" moves the pack to the top level. 409 when
+ *  the destination already has a pack with that stem. */
+export interface PackMoveRequest {
+  folder: string;
+}
+
+/** POST /api/packs/:id/rename — the new title; the file is renamed to
+ *  `<its date>-<slug of title>` too. 409 when that name is taken. */
+export interface PackRenameRequest {
+  title: string;
+}
+
+/** POST /api/folders — a kebab-case name; 409 when it exists. */
+export interface FolderRequest {
+  name: string;
+}
+
+export interface FolderReply extends Committed {
+  folder: string;
+  folders: string[];
+}
+
+/** DELETE /api/folders/:name — only an empty folder; 409 otherwise. */
+export interface FolderDeleteReply extends Committed {
+  ok: true;
+  folders: string[];
 }
 
 /* ------------------------------- assembly -------------------------------- */
