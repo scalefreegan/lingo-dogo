@@ -83,7 +83,7 @@ export default function GoTab({
         </ul>
       )}
 
-      <Button variant="primary" className="self-start px-5 py-2.5 text-base" onClick={() => copy(markdown)} disabled={!markdown}>
+      <Button variant="primary" className="justify-center self-stretch px-5 py-2.5 text-base sm:self-start" onClick={() => copy(markdown)} disabled={!markdown}>
         {copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Copy failed" : "Copy prompt"}
       </Button>
 
@@ -102,14 +102,14 @@ export default function GoTab({
         </Button>
       </div>
       {exported && (
-        <p className="text-xs text-fg-2" data-testid="export-path">
+        <p className="text-sm text-fg-2 sm:text-xs" data-testid="export-path">
           Exported to <code className="font-mono break-all">{exported.path}</code>
         </p>
       )}
-      {exportError && <p className="text-xs text-err">Export failed: {exportError}</p>}
+      {exportError && <p className="text-sm text-err sm:text-xs">Export failed: {exportError}</p>}
 
       {packStatus && (
-        <p className={`text-xs ${packStatus.tone === "ok" ? "text-accent" : "text-err"}`} data-testid="packs-status">
+        <p className={`text-sm sm:text-xs ${packStatus.tone === "ok" ? "text-accent" : "text-err"}`} data-testid="packs-status">
           {packStatus.text}
         </p>
       )}
@@ -119,9 +119,11 @@ export default function GoTab({
           {showPrompt ? "Hide prompt" : "Show prompt"}
         </button>
         {showPrompt && (
+          // Wraps, and breaks an unbroken token (a URL, a long slug) rather
+          // than widening the page; only ever scrolls vertically.
           <pre
             data-testid="preview"
-            className="mt-2 max-h-96 overflow-auto rounded-lg border border-line bg-panel p-4 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg"
+            className="mt-2 max-h-96 overflow-x-hidden overflow-y-auto rounded-lg border border-line bg-panel p-4 font-mono text-sm leading-relaxed wrap-break-word whitespace-pre-wrap text-fg sm:text-[12.5px]"
           >
             {markdown || (pending ? "Assembling…" : "")}
           </pre>
@@ -190,7 +192,7 @@ function SaveButton({
           Save pack
         </Button>
         {message && (
-          <span className="text-xs text-err" data-testid="save-message">
+          <span className="text-sm text-err sm:text-xs" data-testid="save-message">
             {message}
           </span>
         )}
@@ -227,7 +229,7 @@ function SaveButton({
       />
       {conflict ? (
         <>
-          <span className="text-xs text-warn">{conflict} already exists.</span>
+          <span className="text-sm text-warn sm:text-xs">{conflict} already exists.</span>
           <Button variant="primary" disabled={busy} onClick={() => void submit(true)}>
             Overwrite
           </Button>
@@ -240,7 +242,7 @@ function SaveButton({
       <Button variant="ghost" onClick={() => setOpen(false)}>
         Cancel
       </Button>
-      {message && <span className="w-full text-xs text-err">{message}</span>}
+      {message && <span className="w-full text-sm text-err sm:text-xs">{message}</span>}
     </form>
   );
 }

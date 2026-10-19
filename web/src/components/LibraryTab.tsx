@@ -5,7 +5,9 @@ import { Badge, Button, FolderSelect, inputClass } from "./ui";
 import type { PackActions } from "./shared";
 
 /** The small button style every row and header action here uses. */
-const small = "px-2 py-1 text-xs";
+const small = "px-2 py-1 text-sm sm:text-xs";
+/** Meta text (folder headers, the date · scene · units line, the row menu). */
+const fine = "text-sm sm:text-xs";
 
 /* Library tab: every saved pack, grouped by folder ("No folder" first), with
  * a toolbar to make a folder. The one-line outcome of an action now lives on
@@ -51,13 +53,15 @@ export default function LibraryTab({
         <h2 className="text-sm font-medium text-fg">
           Saved packs <span className="text-fg-3">({packs.length})</span>
         </h2>
-        <div className="ml-auto flex items-center gap-2" data-testid="packs-toolbar">
+        {/* The open form takes a row of its own on a phone (basis-full in the
+            wrapping header) instead of squeezing in beside the heading. */}
+        <div className={`ml-auto flex items-center gap-2 ${newFolder === null ? "" : "max-sm:basis-full"}`} data-testid="packs-toolbar">
           {newFolder === null ? (
             <Button variant="ghost" className={small} onClick={() => setNewFolder("")}>
               New folder
             </Button>
           ) : (
-            <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => void submitFolder(e)}>
+            <form className="flex w-full flex-wrap items-center gap-2" onSubmit={(e) => void submitFolder(e)}>
               <input
                 autoFocus
                 aria-label="Folder name"
@@ -67,7 +71,7 @@ export default function LibraryTab({
                 onChange={(e) => setNewFolder(e.target.value)}
               />
               {/* The name is slugified like a pack title; show the result when it differs. */}
-              {slug && slug !== newFolder && <span className="font-mono text-xs text-fg-3">{slug}</span>}
+              {slug && slug !== newFolder && <span className={`font-mono ${fine} text-fg-3`}>{slug}</span>}
               <Button type="submit" variant="primary" className={small} disabled={busy || !slug}>
                 Create
               </Button>
@@ -87,7 +91,7 @@ export default function LibraryTab({
             (g) =>
               (g.folder || g.packs.length > 0) && (
                 <section key={g.folder || "/"} aria-label={g.folder || "No folder"} data-testid={`folder-${g.folder || "none"}`}>
-                  <header className="flex items-center gap-2 bg-raised px-4 py-1.5 text-xs font-medium text-fg-2">
+                  <header className={`flex items-center gap-2 bg-raised px-4 py-1.5 ${fine} font-medium text-fg-2`}>
                     <span className={g.folder ? "font-mono" : ""}>{g.folder || "No folder"}</span>
                     <span className="text-fg-3">({g.packs.length})</span>
                     {g.folder && g.packs.length === 0 && (
@@ -112,7 +116,9 @@ export default function LibraryTab({
 
 /** One saved pack: Load and Clone up front; Move, Rename and Delete behind a
  *  "…" toggle, since they change files. Delete is the one action that asks
- *  (window.confirm — the file goes, though git keeps it). */
+ *  (window.confirm — the file goes, though git keeps it). On a phone the
+ *  three buttons sit on their own line under the title, so the title keeps
+ *  its width and "…" stays a full-size target. */
 function PackRow({
   pack: p,
   content,
@@ -150,35 +156,38 @@ function PackRow({
 
   return (
     <li className="border-b border-line px-4 py-2 last:border-b-0" data-testid={`pack-${p.id}`}>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm text-fg">{p.title}</span>
             {open && <Badge tone="accent">open</Badge>}
           </div>
-          <div className="truncate text-xs text-fg-3">
+          <div className={`truncate ${fine} text-fg-3`}>
             <span className="font-mono">{stem.slice(0, 10)}</span> · {scenario} · {p.units.length} units
           </div>
         </div>
-        <Button variant="ghost" className={small} onClick={() => onLoad(p)}>
-          Load
-        </Button>
-        <Button variant="ghost" className={small} onClick={() => onClone(p)}>
-          Clone
-        </Button>
-        <Button
-          variant="ghost"
-          className={small}
-          aria-label={`More actions for ${p.title}`}
-          aria-expanded={mode !== "closed"}
-          onClick={() => setMode(mode === "closed" ? "menu" : "closed")}
-        >
-          …
-        </Button>
+        {/* -ml-2 lines the first label up with the title on the stacked phone layout. */}
+        <div className="-ml-2 flex shrink-0 items-center gap-1 sm:ml-0">
+          <Button variant="ghost" className={small} onClick={() => onLoad(p)}>
+            Load
+          </Button>
+          <Button variant="ghost" className={small} onClick={() => onClone(p)}>
+            Clone
+          </Button>
+          <Button
+            variant="ghost"
+            className={`${small} min-w-10 justify-center`}
+            aria-label={`More actions for ${p.title}`}
+            aria-expanded={mode !== "closed"}
+            onClick={() => setMode(mode === "closed" ? "menu" : "closed")}
+          >
+            …
+          </Button>
+        </div>
       </div>
       {mode === "menu" && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <label className="flex items-center gap-1.5 text-fg-3">
+        <div className={`mt-2 flex flex-wrap items-center gap-2 ${fine}`}>
+          <label className="flex items-center gap-1.5 whitespace-nowrap text-fg-3">
             Move to
             <FolderSelect label={`Move ${p.title} to`} value={p.folder} folders={folders} disabled={busy} onChange={(f) => void run(onMove(p.id, f))} />
           </label>

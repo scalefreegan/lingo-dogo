@@ -60,7 +60,7 @@ export default function CustomizeTab({
           </div>
           <p className="mt-1 text-sm text-fg-2">
             These units name a slot that content/schema.yaml doesn't have, so they are never assembled. Fix the unit's{" "}
-            <code className="font-mono text-xs">slot</code> or add the slot to the schema.
+            <code className="font-mono text-sm sm:text-xs">slot</code> or add the slot to the schema.
           </p>
           <ul className="mt-3 flex flex-col gap-2">
             {unslotted.map((u) => (
@@ -174,7 +174,9 @@ function SlotRow({
               );
             })}
           </fieldset>
-          {one && selected.length > 1 && <p className="mt-2 text-xs text-warn">This slot takes one unit; only the first is used. Pick one to clear the warning.</p>}
+          {one && selected.length > 1 && (
+            <p className="mt-2 text-sm text-warn sm:text-xs">This slot takes one unit; only the first is used. Pick one to clear the warning.</p>
+          )}
         </div>
       )}
     </div>

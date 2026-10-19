@@ -1,7 +1,12 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 /* Small shared pieces. Colours come from the semantic tokens in index.css,
- * which flip with prefers-color-scheme, so nothing here writes dark:. */
+ * which flip with prefers-color-scheme, so nothing here writes dark:.
+ *
+ * Fine print (badges, meta lines, small buttons) is 14px on a phone and
+ * only drops to 11–12px from `sm` up: `text-sm sm:text-xs` throughout, so
+ * nothing on a phone renders below 14px. Tap heights come from the
+ * base-layer rule in index.css, not from classes here. */
 
 export function Card({ children, className = "", ...rest }: { children: ReactNode; className?: string } & Record<`data-${string}`, string>) {
   return (
@@ -21,7 +26,7 @@ const TONES: Record<Tone, string> = {
 
 export function Badge({ children, tone = "neutral", title }: { children: ReactNode; tone?: Tone; title?: string }) {
   return (
-    <span title={title} className={`inline-flex shrink-0 items-center rounded px-1.5 whitespace-nowrap py-0.5 text-[11px] leading-none font-medium ${TONES[tone]}`}>
+    <span title={title} className={`inline-flex shrink-0 items-center rounded px-1.5 whitespace-nowrap py-0.5 text-sm leading-none font-medium sm:text-[11px] ${TONES[tone]}`}>
       {children}
     </span>
   );

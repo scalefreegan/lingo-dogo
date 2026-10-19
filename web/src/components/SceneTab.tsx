@@ -99,7 +99,7 @@ export default function SceneTab({
                   <input
                     type="search"
                     aria-label="Search scenes"
-                    className={`${inputClass} max-w-sm`}
+                    className={`${inputClass} sm:max-w-sm`}
                     placeholder="Search scenes…"
                     value={filter.query}
                     onChange={(e) => setFilter({ ...filter, query: e.target.value })}
@@ -191,8 +191,11 @@ export default function SceneTab({
   );
 }
 
-/** 4 columns at desktop width, down to 1 on a phone. */
-const GRID = "grid grid-cols-1 gap-2.5 sm:grid-cols-2 min-[1000px]:grid-cols-3 min-[1300px]:grid-cols-4";
+/** 1 column on a phone, 2 from `sm`, 3 from `lg` (1024, where the side
+ *  column appears), 4 from `xl`. Named breakpoints only: Tailwind v4 emits
+ *  arbitrary `min-[…]:` variants *before* the named ones, so a
+ *  `min-[1000px]:grid-cols-3` here lost to `sm:grid-cols-2` at every width. */
+const GRID = "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 
 function Chip({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
   return (
@@ -200,7 +203,7 @@ function Chip({ label, count, active, onClick }: { label: string; count: number;
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+      className={`rounded-full border px-3 py-1 text-sm transition-colors sm:px-2.5 sm:text-xs ${
         active ? "border-accent bg-accent-soft text-accent" : "border-line bg-panel text-fg-2 hover:border-line-strong"
       }`}
     >
@@ -232,8 +235,8 @@ function ScenarioCard({
       }`}
     >
       <span className="line-clamp-2 text-sm leading-snug font-medium text-fg">{title}</span>
-      <p className="w-full truncate text-xs text-fg-2">{summary}</p>
-      {category && <span className="mt-0.5 text-[11px] text-fg-3">{category}</span>}
+      <p className="w-full truncate text-sm text-fg-2 sm:text-xs">{summary}</p>
+      {category && <span className="mt-0.5 text-sm text-fg-3 sm:text-[11px]">{category}</span>}
     </button>
   );
 }
@@ -272,7 +275,7 @@ function QuickSceneCard({
           onChange={(e) => onChangeText(e.target.value)}
         />
       ) : (
-        <p className="truncate text-xs text-fg-2">Describe a scene in your own words.</p>
+        <p className="truncate text-sm text-fg-2 sm:text-xs">Describe a scene in your own words.</p>
       )}
     </div>
   );
@@ -327,7 +330,7 @@ function LearnerCard({
           <h3 className="text-sm font-medium text-fg">Learner</h3>
           <p className="mt-0.5 text-sm text-fg-2">{formatSessionLine(session) || "Not set"}</p>
         </div>
-        <Button variant="ghost" className="text-xs" aria-expanded={editing} onClick={() => setEditing((e) => !e)}>
+        <Button variant="ghost" className="sm:text-xs" aria-expanded={editing} onClick={() => setEditing((e) => !e)}>
           {editing ? "Done" : "Edit"}
         </Button>
       </div>
@@ -352,7 +355,7 @@ function LearnerCard({
             </>
           ) : (
             OVERRIDE_FIELDS.map(({ key, label }) => (
-              <label key={key} className="flex flex-col gap-1 text-xs text-fg-2">
+              <label key={key} className="flex flex-col gap-1 text-sm text-fg-2 sm:text-xs">
                 {label}
                 <input className={inputClass} value={draft.overrides[key]} placeholder={fallback(key) || "—"} onChange={(e) => setOverride(key, e.target.value)} />
               </label>
@@ -363,7 +366,7 @@ function LearnerCard({
               {saving ? "Saving…" : "Save as my defaults"}
             </Button>
             {saveMessage && (
-              <span className={`text-xs ${saveMessage.tone === "ok" ? "text-accent" : "text-err"}`} data-testid="profile-message">
+              <span className={`text-sm sm:text-xs ${saveMessage.tone === "ok" ? "text-accent" : "text-err"}`} data-testid="profile-message">
                 {saveMessage.text}
               </span>
             )}
@@ -394,7 +397,7 @@ function Picker({
 }) {
   const shown = options.includes(value) ? options : [value, ...options];
   return (
-    <label className="flex flex-col gap-1 text-xs text-fg-2">
+    <label className="flex flex-col gap-1 text-sm text-fg-2 sm:text-xs">
       {label}
       <select className={inputClass} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         {shown.map((o) => (

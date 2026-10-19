@@ -21,7 +21,7 @@ function inline(s: string, keyBase: string): ReactNode[] {
   while ((m = re.exec(s))) {
     if (m.index > last) out.push(s.slice(last, m.index));
     if (m[1]) out.push(<strong key={`${keyBase}b${i}`} className="font-semibold">{m[1]}</strong>);
-    else if (m[2]) out.push(<code key={`${keyBase}c${i}`} className="rounded bg-raised px-1 font-mono text-[0.85em]">{m[2]}</code>);
+    else if (m[2]) out.push(<code key={`${keyBase}c${i}`} className="rounded bg-raised px-1 font-mono sm:text-[0.85em]">{m[2]}</code>);
     last = m.index + m[0].length;
     i++;
   }
@@ -160,11 +160,11 @@ export default function ChatPanel({ onContentChanged }: { onContentChanged: () =
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="chat-panel">
       <div className="flex items-center gap-2 border-b border-line px-4 py-2">
-        <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-fg-3">
+        <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-fg-3 sm:text-xs">
           Model
           <select
             aria-label="Model"
-            className={`${inputClass} py-1 text-xs`}
+            className={`${inputClass} py-1 text-sm sm:text-xs`}
             value={settings?.model ?? ""}
             disabled={!settings || thinking}
             onChange={(e) => void pickModel(e.target.value)}
@@ -176,7 +176,7 @@ export default function ChatPanel({ onContentChanged }: { onContentChanged: () =
             ))}
           </select>
         </label>
-        <Button variant="ghost" className="text-xs" onClick={() => void clear()} disabled={thinking || messages.length === 0}>
+        <Button variant="ghost" className="shrink-0 sm:text-xs" onClick={() => void clear()} disabled={thinking || messages.length === 0}>
           Clear history
         </Button>
       </div>
@@ -184,7 +184,7 @@ export default function ChatPanel({ onContentChanged }: { onContentChanged: () =
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3" aria-live="polite">
         {messages.length === 0 && !thinking && (
           <p className="text-sm text-fg-3">
-            Ask for a new unit or scenario, or a change to one. The agent edits files under <code className="font-mono text-xs">content/</code>; each
+            Ask for a new unit or scenario, or a change to one. The agent edits files under <code className="font-mono sm:text-xs">content/</code>; each
             change becomes a git commit and the library reloads.
           </p>
         )}
@@ -195,7 +195,7 @@ export default function ChatPanel({ onContentChanged }: { onContentChanged: () =
                 <p className="max-w-[90%] rounded-lg bg-accent-soft px-3 py-2 whitespace-pre-wrap text-fg">{m.text}</p>
               </li>
             ) : m.role === "commit" ? (
-              <li key={i} className="text-xs text-fg-3" data-role="commit">
+              <li key={i} className="text-fg-3 sm:text-xs" data-role="commit">
                 Committed <code className="font-mono">{m.text.split(":")[0]}</code>
                 {m.text.includes(":") ? `: ${m.text.slice(m.text.indexOf(":") + 1).trim()}` : ""}
               </li>
@@ -209,10 +209,10 @@ export default function ChatPanel({ onContentChanged }: { onContentChanged: () =
         {thinking && (
           <p className="mt-3 flex items-center gap-2 text-sm text-fg-3" data-testid="chat-working">
             <span className="inline-block size-2 animate-pulse rounded-full bg-accent" />
-            {modelLabel} is working… <span className="font-mono text-xs">{elapsed}s</span>
+            {modelLabel} is working… <span className="font-mono sm:text-xs">{elapsed}s</span>
           </p>
         )}
-        {note && !thinking && <p className="mt-2 text-xs text-fg-3">{note}</p>}
+        {note && !thinking && <p className="mt-2 text-sm text-fg-3 sm:text-xs">{note}</p>}
         {error && (
           <p className="mt-3 rounded-md bg-err-soft px-3 py-2 text-sm whitespace-pre-wrap text-err" role="alert">
             {error}

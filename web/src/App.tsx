@@ -341,7 +341,7 @@ function ProblemsStrip({ problems }: { problems: Problem[] }) {
       <ul className="mt-2 flex flex-col gap-1 pb-1">
         {problems.map((p) => (
           <li key={`${p.file}:${p.message}`}>
-            <span className="font-medium">{p.level}</span> <code className="font-mono text-xs">{p.file}</code>: {p.message}
+            <span className="font-medium">{p.level}</span> <code className="font-mono text-sm break-all sm:text-xs">{p.file}</code>: {p.message}
           </li>
         ))}
       </ul>

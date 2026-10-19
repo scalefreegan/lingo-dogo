@@ -5,7 +5,10 @@ import type { Tab } from "./shared";
 /* The top bar: the app's name, the three-step flow as tabs, Library off to
  * the side (it's a destination, not a step), and the two actions that touch
  * the whole draft (New pack, Reload content) tucked behind "…" so they don't
- * compete with the tabs for attention. */
+ * compete with the tabs for attention. On a phone (below `sm`) Library moves
+ * into that "…" menu — the bar can't hold four tabs and the menu at 390px —
+ * and the three flow tabs scroll in their own strip rather than widening
+ * the page. */
 export default function TopBar({
   tab,
   onTab,
@@ -22,49 +25,58 @@ export default function TopBar({
   ready: boolean;
 }) {
   return (
-    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-1 border-b border-line bg-panel px-4 pr-10">
+    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-1 border-b border-line bg-panel px-4 sm:pr-10">
       <h1 className="mr-2 shrink-0 text-base font-semibold text-fg">Lingo Dojo</h1>
-      <nav className="flex h-full items-center gap-1" aria-label="Sections">
+      {/* min-w-0 + overflow-x-auto: on a phone narrower than the three tabs
+          the strip scrolls sideways by itself instead of widening the page. */}
+      <nav className="flex h-full min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none]" aria-label="Sections">
         <TabButton label="Scene" active={tab === "scene"} onClick={() => onTab("scene")} />
         <TabButton label="Customize" active={tab === "customize"} onClick={() => onTab("customize")} />
         <TabButton label="Go" active={tab === "go"} onClick={() => onTab("go")} />
       </nav>
-      <div className="ml-auto flex h-full items-center gap-1">
-        <TabButton label="Library" active={tab === "library"} onClick={() => onTab("library")} />
-        <OverflowMenu onNewPack={onNewPack} onReload={onReload} reloading={reloading} ready={ready} />
+      <div className="ml-auto flex h-full shrink-0 items-center gap-1">
+        <TabButton label="Library" active={tab === "library"} onClick={() => onTab("library")} className="hidden sm:flex" />
+        <OverflowMenu onNewPack={onNewPack} onReload={onReload} reloading={reloading} ready={ready} libraryActive={tab === "library"} onLibrary={() => onTab("library")} />
       </div>
     </header>
   );
 }
 
-function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TabButton({ label, active, onClick, className = "" }: { label: string; active: boolean; onClick: () => void; className?: string }) {
   return (
     <button
       type="button"
       aria-current={active ? "page" : undefined}
       onClick={onClick}
-      className={`flex h-full items-center border-b-2 px-3 text-sm font-medium transition-colors ${
+      className={`flex h-full shrink-0 items-center border-b-2 px-3 text-sm font-medium transition-colors ${
         active ? "border-accent text-fg" : "border-transparent text-fg-3 hover:text-fg-2"
-      }`}
+      } ${className}`}
     >
       {label}
     </button>
   );
 }
 
+const menuItemClass = "px-3 py-2 text-left text-sm text-fg-2 hover:bg-raised disabled:opacity-50";
+
 /** New pack and Reload content: whole-draft actions, not part of the Scene →
  *  Customize → Go flow, so they live behind an overflow toggle instead of
- *  sitting next to the tabs. */
+ *  sitting next to the tabs. Library joins them on a phone, where the bar
+ *  has no room for its tab. */
 function OverflowMenu({
   onNewPack,
   onReload,
   reloading,
   ready,
+  libraryActive,
+  onLibrary,
 }: {
   onNewPack: () => void;
   onReload: () => void;
   reloading: boolean;
   ready: boolean;
+  libraryActive: boolean;
+  onLibrary: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -80,8 +92,20 @@ function OverflowMenu({
             <button
               type="button"
               role="menuitem"
+              aria-current={libraryActive ? "page" : undefined}
+              className={`${menuItemClass} border-b border-line sm:hidden ${libraryActive ? "font-medium text-fg" : ""}`}
+              onClick={() => {
+                onLibrary();
+                setOpen(false);
+              }}
+            >
+              Library
+            </button>
+            <button
+              type="button"
+              role="menuitem"
               disabled={!ready}
-              className="px-3 py-2 text-left text-sm text-fg-2 hover:bg-raised disabled:opacity-50"
+              className={menuItemClass}
               onClick={() => {
                 onNewPack();
                 setOpen(false);
@@ -93,7 +117,7 @@ function OverflowMenu({
               type="button"
               role="menuitem"
               disabled={reloading}
-              className="px-3 py-2 text-left text-sm text-fg-2 hover:bg-raised disabled:opacity-50"
+              className={menuItemClass}
               onClick={() => {
                 onReload();
                 setOpen(false);
