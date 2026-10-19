@@ -232,3 +232,48 @@ export function localTimestamp(d = new Date()): string {
 export function packId(title: string, d = new Date()): string {
   return `${localDate(d)}-${slugify(title)}`;
 }
+
+/* ------------------------- remembering the draft ------------------------- */
+
+const DRAFT_KEY = "lingo-dojo.draft.v1";
+
+/** The last draft, so a refresh doesn't throw away today's selections.
+ *  Browser storage only: a per-machine convenience, never the record (saved
+ *  packs are). Any read failure means "start fresh". */
+export function loadRememberedDraft(): Draft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Partial<Draft>;
+    if (!Array.isArray(d.units) || typeof d.overrides !== "object" || d.overrides === null) return null;
+    return { ...newDraftShape(), ...d, overrides: { ...emptyOverrides(), ...d.overrides } } as Draft;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberDraft(draft: Draft | null): void {
+  try {
+    if (draft) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    else localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* private window or blocked storage: nothing to remember into */
+  }
+}
+
+/** Every field a Draft has, with empty values; keeps an older stored draft
+ *  loadable after a field is added. */
+function newDraftShape(): Draft {
+  return {
+    title: "",
+    sourceId: null,
+    created: "",
+    scenarioMode: "library",
+    scenario: "",
+    quickScenario: "",
+    units: [],
+    overrides: emptyOverrides(),
+    notes: "",
+    extraOverrides: {},
+  };
+}

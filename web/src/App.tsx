@@ -3,7 +3,7 @@ import {
   ApiError, assemblePack, createFolder, deleteFolder, deletePack, getContent, listPacks, movePack, renamePack, savePack, saveProfile,
 } from "./api";
 import type { AssembleResult, Committed, ContentReply, Pack, PackInput, PacksReply, Problem, ProfileRequest } from "./types";
-import { draftToPack, emptyOverrides, joinPackId, localTimestamp, newDraft, packId, packToDraft, splitPackId, type Draft } from "./draft";
+import { draftToPack, emptyOverrides, joinPackId, loadRememberedDraft, localTimestamp, newDraft, packId, packToDraft, rememberDraft, splitPackId, type Draft } from "./draft";
 import ScenarioColumn from "./components/ScenarioColumn";
 import SlotsColumn from "./components/SlotsColumn";
 import PreviewColumn, { type PackStatus, type SaveOutcome } from "./components/PreviewColumn";
@@ -41,9 +41,10 @@ export default function App() {
     setFolders(p.folders);
     setLoadError(null);
     setContentVersion((v) => v + 1);
-    // The first load starts a new pack from the library's defaults; later
+    // The first load restores the last draft this browser had (so a refresh
+    // keeps today's picks), else starts from the library's defaults; later
     // reloads keep the draft (a unit that vanished shows up as a warning).
-    setDraft((d) => d ?? newDraft(c));
+    setDraft((d) => d ?? loadRememberedDraft() ?? newDraft(c));
   }, []);
 
   useEffect(() => {
@@ -212,6 +213,11 @@ export default function App() {
     setDraft({ ...packToDraft(p), title, sourceId: null, created: "" });
     setSaveRequest((r) => ({ title, folder: p.folder, seq: (r?.seq ?? 0) + 1 }));
   }
+
+  // Remember every change; "New pack" below is the way back to the defaults.
+  useEffect(() => {
+    if (draft) rememberDraft(draft);
+  }, [draft]);
 
   function startNew() {
     if (!content) return;
