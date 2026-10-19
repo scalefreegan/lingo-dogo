@@ -1,3 +1,19 @@
+# Runtime state and rendered exports
+data/
+exports/
+
+node_modules/
+web/dist/
+.env
+.env.*
+*.local
+.DS_Store
+
+# browser-automation debug artifacts
+.playwright-mcp/
+*.png
+!web/public/*.png
+!macos/icon-1024.png
 
 # Beads / Dolt files (added by bd init)
 .dolt/

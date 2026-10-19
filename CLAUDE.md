@@ -1,6 +1,38 @@
-# Project Instructions for AI Agents
+# Lingo Dogo — agent instructions
 
-This file provides instructions and context for AI coding agents working on this project.
+Composable prompt-pack builder for language-practice sessions with a voice "dojo
+master". Single user, localhost, no auth, **no database**: all content is markdown
+and YAML under `content/`, tracked by git. Read `docs/PRD.md` first, then
+`docs/CONTENT.md` (the file-format contract) before touching content or the loader.
+
+## Patterns to copy, not reinvent
+- Sibling apps: `../travel-guide` (Atlas, closest: `web/server/api.ts` same-origin
+  `wrap()`, `scripts/claude.mjs`, SSE chat, `macos/` Dock app) and `../wine-guide`
+  (`web/src/components/ChatPanel.tsx`, `web/.oxlintrc.json`).
+- Port **38400**, `strictPort`, `usePolling` watcher (FSEvents is unreliable on this
+  machine). Atlas is 38300, Wine Guide 38200, Basecamp 38100.
+- Every API route goes through `wrap()` with the same-origin check. No exceptions.
+- The embedded agent spawns headless `claude -p` with your Claude Code login (no
+  API key). It may Read the repo and Write/Edit **only under `content/`**. After
+  every agent turn the server commits any `content/` change (`agent: <summary>`)
+  so it can be reverted with git. Agents never touch `web/`, `scripts/`, or `.beads/`.
+- Runtime state (chat history, model setting) is JSON under `data/` (gitignored).
+  Exports go to `exports/` (gitignored).
+- Loader and assembler (`scripts/content.mjs`, `scripts/assemble.mjs`) are pure ESM
+  with no server imports, so `node --test` covers them directly.
+
+## Work tracking
+Beads: `bd ready` for unblocked work, `bd show <id>` for context, `bd close <id>`
+when done. Prefix `ld`. File new work as beads, not TODO comments.
+
+## Conventions
+- TypeScript strict; `oxlint` (config copied from wine-guide).
+- Comments explain *why*, at the density of wine-guide's server code.
+- Secrets never in the repo. There are none expected in v1.
+- Verify UI in the real app (Playwright MCP or Claude-in-Chrome) before claiming a
+  feature works.
+- Content files are the product. Keep unit bodies self-contained and written as
+  instructions to the dojo master; see `docs/CONTENT.md`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
@@ -56,22 +88,3 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - Do not commit or push without clear authority from the active profile or the current user request.
 - If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
-
-
-## Build & Test
-
-_Add your build and test commands here_
-
-```bash
-# Example:
-# npm install
-# npm test
-```
-
-## Architecture Overview
-
-_Add a brief overview of your project architecture_
-
-## Conventions & Patterns
-
-_Add your project-specific conventions here_
