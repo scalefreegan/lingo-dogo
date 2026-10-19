@@ -1,5 +1,8 @@
 import { useState } from "react";
+import type { ContentReply, ProfileRequest } from "../types";
+import type { Draft } from "../draft";
 import { Button } from "./ui";
+import ProfileControl from "./ProfileControl";
 import type { Tab } from "./shared";
 
 /* The top bar: the app's name, the three-step flow as tabs, Library off to
@@ -16,6 +19,10 @@ export default function TopBar({
   onReload,
   reloading,
   ready,
+  content,
+  draft,
+  onChange,
+  onSaveDefaults,
 }: {
   tab: Tab;
   onTab: (t: Tab) => void;
@@ -23,6 +30,11 @@ export default function TopBar({
   onReload: () => void;
   reloading: boolean;
   ready: boolean;
+  /** Null until the first load; the Profile pill appears with them. */
+  content: ContentReply | null;
+  draft: Draft | null;
+  onChange: (d: Draft) => void;
+  onSaveDefaults: (values: ProfileRequest) => Promise<string | null>;
 }) {
   return (
     <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-1 border-b border-line bg-panel px-4 sm:pr-10">
@@ -35,6 +47,7 @@ export default function TopBar({
         <TabButton label="Go" active={tab === "go"} onClick={() => onTab("go")} />
       </nav>
       <div className="ml-auto flex h-full shrink-0 items-center gap-1">
+        {content && draft && <ProfileControl content={content} draft={draft} onChange={onChange} onSaveDefaults={onSaveDefaults} />}
         <TabButton label="Library" active={tab === "library"} onClick={() => onTab("library")} className="hidden sm:flex" />
         <OverflowMenu onNewPack={onNewPack} onReload={onReload} reloading={reloading} ready={ready} libraryActive={tab === "library"} onLibrary={() => onTab("library")} />
       </div>

@@ -269,7 +269,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <TopBar tab={tab} onTab={setTab} onNewPack={startNew} onReload={() => void reloadContent()} reloading={reloading} ready={!!content} />
+      <TopBar tab={tab} onTab={setTab} onNewPack={startNew} onReload={() => void reloadContent()} reloading={reloading} ready={!!content} content={content} draft={draft} onChange={setDraft} onSaveDefaults={saveDefaults} />
       {content && draft && pack && (
         <SummaryBar content={content} draft={draft} pack={pack} sceneTitle={scenarioTitle} result={result} pending={assembling} onTab={setTab} />
       )}
@@ -281,7 +281,7 @@ export default function App() {
         <main className="flex-1 p-4">
           <div className={`mx-auto flex w-full flex-col ${tab === "scene" ? "max-w-[1200px]" : "max-w-3xl"}`}>
             {tab === "scene" && (
-              <SceneTab content={content} draft={draft} onChange={setDraft} onSaveDefaults={saveDefaults} onNext={() => setTab("customize")} />
+              <SceneTab content={content} draft={draft} onChange={setDraft} onNext={() => setTab("customize")} />
             )}
             {tab === "customize" && <CustomizeTab content={content} draft={draft} onChange={setDraft} onNext={() => setTab("go")} />}
             {tab === "go" && (
@@ -292,6 +292,8 @@ export default function App() {
                 sourceId={draft.sourceId}
                 sceneTitle={scenarioTitle}
                 learnerLine={learnerLine}
+                notes={draft.notes}
+                onNotes={(notes) => setDraft({ ...draft, notes })}
                 exportId={draft.sourceId ? splitPackId(draft.sourceId).stem : packId(draft.title || scenarioTitle || "session")}
                 result={result}
                 pending={assembling}

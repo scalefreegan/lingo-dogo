@@ -1,14 +1,25 @@
 import { useMemo, useState } from "react";
-import type { ContentReply, ProfileRequest } from "../types";
-import {
-  LEVELS, OVERRIDE_FIELDS, choosePickerValue, fold, formatSessionLine, profileDefault, profileValue, sessionValues, type Draft, type OverrideKey,
-} from "../draft";
-import { Button, Card, inputClass } from "./ui";
+import type { ContentReply } from "../types";
+import { fold, type Draft } from "../draft";
+import { Button, Chevron, inputClass } from "./ui";
 
 const FILTER_KEY = "lingo-dojo.scene-filter.v1";
 /** Chip order; any other category a scenario uses follows alphabetically. */
 const CATEGORY_ORDER = ["Food & drink", "Getting around", "Shopping", "Outdoors & sport", "Culture & guides", "Lodging & logistics", "Health & help"];
 const OTHER_SCENES = "Other scenes";
+const FOLDERS_KEY = "lingo-dojo.scene-folders.v1";
+
+/** Open/closed per collection, as the user last left it. A collection absent
+ *  from the map has never been toggled and takes its default. */
+function loadFolders(): Record<string, boolean> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? "null") as Record<string, unknown> | null;
+    if (!raw || typeof raw !== "object") return {};
+    return Object.fromEntries(Object.entries(raw).filter(([, v]) => typeof v === "boolean")) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
 
 interface Filter {
   query: string;
@@ -25,24 +36,19 @@ function loadFilter(): Filter {
   }
 }
 
-/* Scene tab: what the session is about (a library scenario or a quick one),
- * who it is for (the learner line, collapsed until you ask to change it),
- * and an optional note — set once, then move on to Customize. The scenes get
- * the wide column (search, category chips, grouped grid); the learner and
- * note sit in a sticky side column on desktop. */
+/* Scene tab: what the session is about — a library scenario or a quick one.
+ * Library scenes sit in collapsible collection folders under search and
+ * category chips; who the session is for lives in the top bar's Profile
+ * control, and the note for the dojo master on the Go tab. */
 export default function SceneTab({
   content,
   draft,
   onChange,
-  onSaveDefaults,
   onNext,
 }: {
   content: ContentReply;
   draft: Draft;
   onChange: (d: Draft) => void;
-  /** Writes the shown picker values to profile.yaml; resolves to an error
-   *  sentence, or null when the profile (and the draft) now reflect them. */
-  onSaveDefaults: (values: ProfileRequest) => Promise<string | null>;
   onNext: () => void;
 }) {
   const quick = draft.scenarioMode === "quick";
@@ -50,6 +56,7 @@ export default function SceneTab({
   const [filter, setFilterState] = useState<Filter>(loadFilter);
   const setFilter = (f: Filter) => {
     setFilterState(f);
+    setTransient({});
     try {
       localStorage.setItem(FILTER_KEY, JSON.stringify(f));
     } catch {
@@ -57,6 +64,12 @@ export default function SceneTab({
     }
   };
   const clear = () => setFilter({ query: "", category: "" });
+
+  const [stored, setStored] = useState<Record<string, boolean>>(loadFolders);
+  // While a search or chip is active, folders with matches open on their own;
+  // clicking one then is a this-filter-only choice, forgotten when the filter
+  // changes, and never written to storage.
+  const [transient, setTransient] = useState<Record<string, boolean>>({});
 
   const categories = useMemo(() => {
     const present = new Set(scenarios.map((s) => s.category).filter((c): c is string => !!c));
@@ -73,23 +86,46 @@ export default function SceneTab({
     [scenarios, needle],
   );
   const visible = category ? searched.filter((s) => s.category === category) : searched;
+  // Every collection gets a folder, matches or not: a folder with nothing
+  // under the current filter says so rather than vanishing.
   const groups = useMemo(() => {
     const by = new Map<string, typeof visible>();
-    for (const s of visible) by.set(s.collection ?? "", [...(by.get(s.collection ?? "") ?? []), s]);
+    for (const s of scenarios) if (!by.has(s.collection ?? "")) by.set(s.collection ?? "", []);
+    for (const s of visible) by.get(s.collection ?? "")?.push(s);
     return [...by.entries()]
       .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)))
-      .map(([name, items]) => ({ name: name || OTHER_SCENES, items }));
-  }, [visible]);
+      .map(([key, items]) => ({ key, name: key || OTHER_SCENES, items }));
+  }, [scenarios, visible]);
 
   const filtering = needle !== "" || category !== "";
   const selected = quick ? undefined : scenarios.find((s) => s.id === draft.scenario);
   const hiddenSelected = selected && !visible.some((s) => s.id === selected.id) ? selected : undefined;
+  const selectedKey = selected ? (selected.collection ?? "") : undefined;
+  // Default: everything open when there is one folder, else just the one
+  // holding the selected scene.
+  const isOpen = (g: { key: string; items: unknown[] }) => {
+    if (filtering) return g.items.length > 0 && (transient[g.key] ?? true);
+    return stored[g.key] ?? (groups.length === 1 || g.key === selectedKey);
+  };
+  const toggle = (g: { key: string; items: unknown[] }) => {
+    const next = !isOpen(g);
+    if (filtering) {
+      setTransient({ ...transient, [g.key]: next });
+      return;
+    }
+    const map = { ...stored, [g.key]: next };
+    setStored(map);
+    try {
+      localStorage.setItem(FOLDERS_KEY, JSON.stringify(map));
+    } catch {
+      /* blocked storage: folders just reopen to their defaults next visit */
+    }
+  };
   const pick = (id: string) => onChange({ ...draft, scenarioMode: "library", scenario: id });
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
           {scenarios.length === 0 ? (
             <p className="text-sm text-fg-3">No scenarios in content/scenarios yet.</p>
           ) : (
@@ -155,31 +191,50 @@ export default function SceneTab({
             </div>
           )}
 
-          {groups.map((g) => (
-            <section key={g.name} aria-label={g.name} className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-fg">
-                {g.name} <span className="font-normal text-fg-3">· {g.items.length}</span>
-              </h3>
-              <div className={GRID}>
-                {g.items.map((s) => (
-                  <ScenarioCard
-                    key={s.id}
-                    title={s.title}
-                    summary={s.summary}
-                    category={s.category}
-                    selected={!quick && draft.scenario === s.id}
-                    onClick={() => pick(s.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-28">
-          <LearnerCard content={content} draft={draft} onChange={onChange} onSaveDefaults={onSaveDefaults} />
-          <NotesDisclosure draft={draft} onChange={onChange} />
-        </aside>
+          {groups.map((g) => {
+            const open = isOpen(g);
+            const empty = filtering && g.items.length === 0;
+            const bodyId = `folder-${g.key || "other"}`.replace(/\s+/g, "-");
+            return (
+              <section key={g.key} aria-label={g.name} className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={bodyId}
+                  disabled={empty}
+                  onClick={() => toggle(g)}
+                  className="flex w-full min-w-0 items-center gap-2 rounded-md px-1 py-1.5 text-left hover:bg-raised disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <span className={`shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}>
+                    <Chevron open={false} />
+                  </span>
+                  <FolderGlyph open={open} />
+                  <span className="min-w-0 truncate text-sm font-medium text-fg">{g.name}</span>
+                  <span className="shrink-0 text-sm text-fg-3">· {filtering ? `${g.items.length} of ${scenarios.filter((s) => (s.collection ?? "") === g.key).length}` : g.items.length}</span>
+                  {empty && <span className="shrink-0 text-sm text-fg-3">no matches</span>}
+                  {!open && !empty && selected && selectedKey === g.key && (
+                    <span className="min-w-0 truncate text-sm text-fg-3" data-testid="folder-selected">
+                      · {selected.title}
+                    </span>
+                  )}
+                </button>
+                {open && !empty && (
+                  <div id={bodyId} className={GRID}>
+                    {g.items.map((s) => (
+                      <ScenarioCard
+                        key={s.id}
+                        title={s.title}
+                        summary={s.summary}
+                        category={s.category}
+                        selected={!quick && draft.scenario === s.id}
+                        onClick={() => pick(s.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
       </div>
 
       <div className="flex justify-end">
@@ -191,8 +246,7 @@ export default function SceneTab({
   );
 }
 
-/** 1 column on a phone, 2 from `sm`, 3 from `lg` (1024, where the side
- *  column appears), 4 from `xl`. Named breakpoints only: Tailwind v4 emits
+/** 1 column on a phone, 2 from `sm`, 3 from `lg` (1024), 4 from `xl`. Named breakpoints only: Tailwind v4 emits
  *  arbitrary `min-[…]:` variants *before* the named ones, so a
  *  `min-[1000px]:grid-cols-3` here lost to `sm:grid-cols-2` at every width. */
 const GRID = "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
@@ -281,156 +335,15 @@ function QuickSceneCard({
   );
 }
 
-/* "Learner": the profile keys a pack may override, collapsed to one line
- * until Edit is pressed. Same rules as before — picking the profile's own
- * value clears the override, so a saved pack carries only what differs from
- * content/profile.yaml. */
-function LearnerCard({
-  content,
-  draft,
-  onChange,
-  onSaveDefaults,
-}: {
-  content: ContentReply;
-  draft: Draft;
-  onChange: (d: Draft) => void;
-  onSaveDefaults: (values: ProfileRequest) => Promise<string | null>;
-}) {
-  const { profile, languages } = content;
-  const session = sessionValues(draft, profile);
-  const pickers = languages.length > 0;
-  const choose = (key: OverrideKey, value: string) => onChange(choosePickerValue(draft, profile, languages, key, value));
-  const setOverride = (key: OverrideKey, value: string) => onChange({ ...draft, overrides: { ...draft.overrides, [key]: value } });
-  const fallback = (key: OverrideKey) =>
-    key === "native_language" ? profileValue(profile, key) || "English" : profileDefault(profile, key, session.target_language);
-
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
-  const dirty = OVERRIDE_FIELDS.some(({ key }) => session[key] !== profileValue(profile, key));
-
-  async function saveDefaults() {
-    setSaving(true);
-    setSaveMessage(null);
-    const error = await onSaveDefaults(session);
-    setSaving(false);
-    setSaveMessage(error ? { tone: "err", text: error } : { tone: "ok", text: "Saved to content/profile.yaml" });
-  }
-
-  const names = languages.map((l) => l.name);
-  const variants = languages.find((l) => l.name === session.target_language)?.variants ?? [];
-  // "(none)" is offered only when choosing it does something — see draft.ts.
-  const noneReachable = profileDefault(profile, "target_variant", session.target_language) === "";
-  const variantOptions = noneReachable ? ["", ...variants] : variants;
-
+/** A folder, open or closed — inline so the page needs no icon library. */
+function FolderGlyph({ open }: { open: boolean }) {
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-medium text-fg">Learner</h3>
-          <p className="mt-0.5 text-sm text-fg-2">{formatSessionLine(session) || "Not set"}</p>
-        </div>
-        <Button variant="ghost" className="sm:text-xs" aria-expanded={editing} onClick={() => setEditing((e) => !e)}>
-          {editing ? "Done" : "Edit"}
-        </Button>
-      </div>
-      {editing && (
-        <div className="flex flex-col gap-2.5 border-t border-line pt-3">
-          {pickers ? (
-            <>
-              <Picker label="Native language" value={session.native_language} options={names} onChange={(v) => choose("native_language", v)} />
-              <Picker label="Target language" value={session.target_language} options={names} onChange={(v) => choose("target_language", v)} />
-              {variants.length === 0 && !session.target_variant ? (
-                <Picker label="Variant" value="" options={[""]} emptyLabel="No variants" disabled onChange={() => {}} />
-              ) : (
-                <Picker
-                  label="Variant"
-                  value={session.target_variant}
-                  options={variantOptions}
-                  emptyLabel="(none)"
-                  onChange={(v) => choose("target_variant", v)}
-                />
-              )}
-              <Picker label="Level" value={session.level} options={LEVELS} onChange={(v) => choose("level", v)} />
-            </>
-          ) : (
-            OVERRIDE_FIELDS.map(({ key, label }) => (
-              <label key={key} className="flex flex-col gap-1 text-sm text-fg-2 sm:text-xs">
-                {label}
-                <input className={inputClass} value={draft.overrides[key]} placeholder={fallback(key) || "—"} onChange={(e) => setOverride(key, e.target.value)} />
-              </label>
-            ))
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => void saveDefaults()} disabled={!dirty || saving} title="Write these four values to content/profile.yaml">
-              {saving ? "Saving…" : "Save as my defaults"}
-            </Button>
-            {saveMessage && (
-              <span className={`text-sm sm:text-xs ${saveMessage.tone === "ok" ? "text-accent" : "text-err"}`} data-testid="profile-message">
-                {saveMessage.text}
-              </span>
-            )}
-          </div>
-        </div>
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="size-4 shrink-0 text-fg-3">
+      {open ? (
+        <path d="M2.5 6.2c0-.9.7-1.6 1.6-1.6h3.2l1.6 1.8h5c.9 0 1.6.7 1.6 1.6v.6H5.6L2.5 15V6.2Zm3.1 3.4h12l-2.4 5.6c-.2.4-.6.7-1.1.7H3.8l1.8-6.3Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      ) : (
+        <path d="M2.5 6.2c0-.9.7-1.6 1.6-1.6h3.2l1.6 1.8h7c.9 0 1.6.7 1.6 1.6v6.4c0 .9-.7 1.6-1.6 1.6H4.1c-.9 0-1.6-.7-1.6-1.6V6.2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
       )}
-    </Card>
-  );
-}
-
-/** A <select> whose shown value is always true: a value outside `options`
- *  (a profile entry languages.yaml doesn't list, or nothing at all) is
- *  prepended rather than snapped to the first option. "" shows as `emptyLabel`. */
-function Picker({
-  label,
-  value,
-  options,
-  onChange,
-  disabled = false,
-  emptyLabel = "—",
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  emptyLabel?: string;
-}) {
-  const shown = options.includes(value) ? options : [value, ...options];
-  return (
-    <label className="flex flex-col gap-1 text-sm text-fg-2 sm:text-xs">
-      {label}
-      <select className={inputClass} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
-        {shown.map((o) => (
-          <option key={o} value={o}>
-            {o || emptyLabel}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-/** Collapsed behind a button until there's something to say (or it's loaded
- *  with a note already) — a textarea nobody's going to use is pure clutter. */
-function NotesDisclosure({ draft, onChange }: { draft: Draft; onChange: (d: Draft) => void }) {
-  const [open, setOpen] = useState(draft.notes.trim().length > 0);
-  if (!open) {
-    return (
-      <button type="button" className="self-start text-sm text-fg-3 hover:text-fg-2 hover:underline" onClick={() => setOpen(true)}>
-        Add a note for the dojo master
-      </button>
-    );
-  }
-  return (
-    <label className="flex flex-col gap-1 text-sm text-fg-2">
-      Note for the dojo master
-      <textarea
-        autoFocus
-        className={`${inputClass} min-h-20`}
-        placeholder="Today I'd like extra practice with prices and numbers."
-        value={draft.notes}
-        onChange={(e) => onChange({ ...draft, notes: e.target.value })}
-      />
-    </label>
+    </svg>
   );
 }

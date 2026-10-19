@@ -16,6 +16,8 @@ export default function GoTab({
   sourceId,
   sceneTitle,
   learnerLine,
+  notes,
+  onNotes,
   exportId,
   result,
   pending,
@@ -31,6 +33,8 @@ export default function GoTab({
   sourceId: string | null;
   sceneTitle: string;
   learnerLine: string;
+  notes: string;
+  onNotes: (notes: string) => void;
   /** The id Export writes to: the saved pack's stem, else date + slug. */
   exportId: string;
   result: AssembleResult | null;
@@ -82,6 +86,8 @@ export default function GoTab({
           ))}
         </ul>
       )}
+
+      <NotesDisclosure notes={notes} onChange={onNotes} />
 
       <Button variant="primary" className="justify-center self-stretch px-5 py-2.5 text-base sm:self-start" onClick={() => copy(markdown)} disabled={!markdown}>
         {copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Copy failed" : "Copy prompt"}
@@ -244,5 +250,31 @@ function SaveButton({
       </Button>
       {message && <span className="w-full text-sm text-err sm:text-xs">{message}</span>}
     </form>
+  );
+}
+
+/** Collapsed behind a button until there's something to say (or it's loaded
+ *  with a note already) — a textarea nobody's going to use is pure clutter.
+ *  Lives above Copy so the note is the last thing you touch before pasting. */
+function NotesDisclosure({ notes, onChange }: { notes: string; onChange: (notes: string) => void }) {
+  const [open, setOpen] = useState(notes.trim().length > 0);
+  if (!open) {
+    return (
+      <button type="button" className="self-start text-sm text-fg-3 hover:text-fg-2 hover:underline" onClick={() => setOpen(true)}>
+        Add a note for the dojo master
+      </button>
+    );
+  }
+  return (
+    <label className="flex flex-col gap-1 text-sm text-fg-2">
+      Note for the dojo master
+      <textarea
+        autoFocus
+        className={`${inputClass} min-h-20`}
+        placeholder="Today I'd like extra practice with prices and numbers."
+        value={notes}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
   );
 }
