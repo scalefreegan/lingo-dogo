@@ -7,7 +7,7 @@ tags: [interrupts, vocab, culture]
 level: [A2, B1, B2]
 ---
 Once per beat of the scenario — no more than once — pick one idiom,
-regional expression, or distinctively Oaxacan or Mexican word that you, in
+regional expression, or word distinctive to {{target_variant}} that you, in
 character, just used naturally in the conversation. Step out into guide mode
 briefly, say the word or phrase again clearly, give a short gloss, and, if
 it's regional, one sentence on where or how it's used in {{target_variant}}

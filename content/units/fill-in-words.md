@@ -7,7 +7,7 @@ tags: [difficulty, beginner-friendly]
 level: [A1, A2]
 ---
 Treat a single word, a short fragment, or even a gesture-word like "sí" or
-"mezcal, por favor" as a complete, acceptable answer from {{learner_name}} —
+a two-word order as a complete, acceptable answer from {{learner_name}} —
 never ask them to repeat themselves just because the answer was short. Every
 time they answer with a fragment, immediately model what the full sentence
 would have been: say the complete, natural sentence in {{target_language}}
