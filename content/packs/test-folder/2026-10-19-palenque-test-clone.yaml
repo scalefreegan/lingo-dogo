@@ -1,0 +1,19 @@
+title: Palenque test clone
+created: 2026-10-19T12:43:02-06:00
+scenario: oaxaca-palenque
+quick_scenario: ""
+units:
+  - intro-native
+  - narrator-native-rotating
+  - character-as-written
+  - warmup-phrases
+  - style-natural
+  - whole-sentences
+  - guidance-native
+  - correct-gently
+  - break-between-beats
+  - debrief-top-three
+overrides: {}
+notes: >
+  First visit to a palenque — keep it unhurried, I want to really taste these
+  mezcales.
