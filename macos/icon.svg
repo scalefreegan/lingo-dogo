@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lingo Dogo app icon: a dog's head in profile (facing right) wearing a
+     martial-arts headband, with a small speech bubble, on a deep indigo
+     rounded tile. Flat shapes only — sips rasterizes via CoreGraphics' basic
+     SVG support, so no filters. Rendered to icon-1024.png by render-icon.sh.
+     824x824 tile at (100,100), radius 181; artwork kept in the central ~80%. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect x="100" y="100" width="824" height="824" rx="181" fill="#1b1f3a"/>
+  <!-- speech bubble, upper right -->
+  <path d="M 640 205 H 800 A 50 50 0 0 1 850 255 V 315 A 50 50 0 0 1 800 365 H 720 L 668 415 L 676 365 H 640 A 50 50 0 0 1 590 315 V 255 A 50 50 0 0 1 640 205 Z" fill="#f2b949"/>
+  <circle cx="660" cy="285" r="15" fill="#1b1f3a"/>
+  <circle cx="720" cy="285" r="15" fill="#1b1f3a"/>
+  <circle cx="780" cy="285" r="15" fill="#1b1f3a"/>
+  <!-- headband tails (behind head, flying left) -->
+  <path d="M 300 480 L 160 450 L 190 510 L 140 560 L 290 540 Z" fill="#f2b949"/>
+  <!-- ear (behind head), floppy -->
+  <path d="M 330 430 C 250 450 220 600 260 740 C 330 760 380 680 400 560 Z" fill="#c9892a"/>
+  <!-- head + snout -->
+  <path d="M 330 440 C 340 360 420 330 500 340 C 560 345 600 380 640 440 L 800 520 C 840 540 840 600 800 630 L 640 680 C 620 780 540 830 440 830 C 330 830 270 740 290 620 Z" fill="#e8a846"/>
+  <!-- muzzle highlight -->
+  <path d="M 640 620 C 700 600 760 590 800 600 C 810 640 780 660 740 668 L 640 690 Z" fill="#f6d28c"/>
+  <!-- nose -->
+  <ellipse cx="812" cy="548" rx="36" ry="30" fill="#4a2c12"/>
+  <!-- eye -->
+  <circle cx="560" cy="585" r="27" fill="#1b1f3a"/>
+  <circle cx="569" cy="575" r="9" fill="#ffffff"/>
+  <!-- headband across the forehead, over the head, in front of ear -->
+  <path d="M 322 462 C 400 400 560 395 650 462 L 636 528 C 540 465 410 465 316 530 Z" fill="#f2b949"/>
+  <path d="M 322 462 C 400 400 560 395 650 462 L 646 482 C 550 425 410 428 320 490 Z" fill="#fbd885"/>
+  <!-- headband knot disc with a mark -->
+  <circle cx="340" cy="498" r="30" fill="#f2b949"/>
+  <circle cx="340" cy="498" r="13" fill="#c9892a"/>
+</svg>
