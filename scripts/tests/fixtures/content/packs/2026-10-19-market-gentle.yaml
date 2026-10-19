@@ -1,0 +1,13 @@
+title: Market, gentle corrections
+created: 2026-10-19T09:30:00-06:00
+scenario: market
+quick_scenario: ""
+units:
+  - intro-native
+  - warmup-vocab
+  - correct-gently
+  - debrief-top-three
+overrides:
+  level: B1
+notes: |
+  Extra practice with prices and numbers, please.

@@ -1,0 +1,15 @@
+{
+  "name": "lingo-dogo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lingo Dogo — a composable prompt-pack builder for language practice with a voice dojo master",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "test": "node --test scripts/tests/*.test.mjs",
+    "export": "node scripts/export.mjs"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  }
+}

@@ -1,0 +1,220 @@
+// The assembler: loaded content + one pack -> one markdown prompt for the dojo
+// master. Implements the "Assembly algorithm" section of docs/CONTENT.md; read
+// that first, this file follows its numbered steps.
+//
+// Pure and deterministic: no fs, no clock, no randomness, no Map/Set iteration
+// over anything whose order isn't fixed by the inputs. Same content and pack
+// in, byte-identical markdown out — the test assembles twice and compares, and
+// exports are diffable in git because of it.
+//
+// Nothing here throws on a bad pack. Every problem is a warning string and the
+// markdown is still produced, with a visible placeholder where a required
+// piece is missing, so an export is never silently incomplete.
+
+import { PLACEHOLDERS, normalizePack } from "./content.mjs";
+
+/** Profile keys rendered in the Learner block, in this order, with labels.
+ *  Any other key in the effective profile follows in its own order. */
+const PROFILE_LABELS = [
+  ["learner_name", "Name"],
+  ["native_language", "Native language"],
+  ["target_language", "Target language"],
+  ["target_variant", "Variant"],
+  ["level", "Level"],
+  ["goals", "Goals"],
+  ["notes", "Notes"],
+];
+
+const ROLE_LABELS = { dojo_master: "You (dojo master)", learner: "Learner" };
+
+export const QUICK_SCENARIO_TITLE = "Quick scenario";
+const NO_SCENARIO_TITLE = "No scenario";
+
+/** Shown under a required slot the pack left empty. */
+export const MISSING_UNIT_LINE = "_(No unit selected for this required slot. Choose one before using this prompt.)_";
+const MISSING_SCENARIO_LINE = "_(No scenario selected. Pick a scenario or write a quick scenario before using this prompt.)_";
+
+/**
+ * @param {{schema, frame, profile, units, scenarios}} content  loadContent()'s result
+ * @param {object} rawPack  a pack (file or UI body); normalized here
+ * @returns {{ markdown: string, warnings: string[], stats: { words: number, tokens: number, chars: number } }}
+ */
+export function assemble(content, rawPack) {
+  const pack = normalizePack(rawPack);
+  const warnings = [];
+  const warn = (msg) => {
+    if (!warnings.includes(msg)) warnings.push(msg);
+  };
+
+  // 1. Effective profile: profile.yaml with the pack's overrides on top. A
+  //    blank override (an emptied form field) means "no override", not "erase".
+  const profile = { ...(content.profile ?? {}) };
+  for (const [k, v] of Object.entries(pack.overrides)) {
+    if (v == null || (typeof v === "string" && v.trim() === "")) continue;
+    profile[k] = v;
+  }
+
+  // 2. Scenario: by id, or the quick-scenario text as an ad hoc one.
+  const scenario = resolveScenario(content, pack, warn);
+
+  const values = {};
+  for (const key of PLACEHOLDERS) {
+    const v = key === "scenario_title" ? scenario.title : profile[key];
+    if (v != null && String(v).trim() !== "") values[key] = String(v);
+  }
+  const fill = (text, source) => substitute(text, values, source, warn);
+
+  // 3. Slots in schema order; each slot's units in pack order.
+  const unitsById = new Map((content.units ?? []).map((u) => [u.id, u]));
+  const slots = content.schema?.slots ?? [];
+  const slotIds = new Set(slots.map((s) => s.id));
+  const picked = []; // unit ids in pack order, unknown/duplicate/unslotted ones dropped
+  for (const id of pack.units) {
+    if (picked.includes(id)) {
+      warn(`Unit "${id}" is listed twice in the pack; included once.`);
+      continue;
+    }
+    const unit = unitsById.get(id);
+    if (!unit) {
+      warn(`Unknown unit "${id}" (no content/units/${id}.md); skipped.`);
+      continue;
+    }
+    if (!slotIds.has(unit.slot)) {
+      warn(`Unit "${id}" is in slot "${unit.slot}", which is not in schema.yaml; skipped.`);
+      continue;
+    }
+    picked.push(id);
+  }
+
+  const slotSections = [];
+  for (const slot of slots) {
+    let chosen = picked.filter((id) => unitsById.get(id).slot === slot.id).map((id) => unitsById.get(id));
+    if (slot.pick === "one" && chosen.length > 1) {
+      warn(
+        `Slot "${slot.title}" takes one unit but the pack has ${chosen.length} (${chosen.map((u) => u.id).join(", ")}); kept "${chosen[0].id}".`,
+      );
+      chosen = chosen.slice(0, 1);
+    }
+    if (chosen.length === 0) {
+      if (!slot.required) continue; // empty optional slot: omitted
+      warn(`Required slot "${slot.title}" has no unit selected.`);
+      slotSections.push(`## ${slot.title}\n\n${MISSING_UNIT_LINE}`);
+      continue;
+    }
+    const parts = [`## ${slot.title}`];
+    for (const unit of chosen) {
+      parts.push(`### ${unit.title}`);
+      const body = fill(unit.body ?? "", `unit "${unit.id}"`).trimEnd();
+      if (body) parts.push(body);
+    }
+    slotSections.push(parts.join("\n\n"));
+  }
+
+  // 4. Render, in the contract's order.
+  const sections = [`# Lingo Dogo session: ${scenario.title}`];
+  const frame = fill(content.frame ?? "", "frame.md").trim();
+  if (frame) sections.push(frame);
+  sections.push(renderLearner(profile));
+  sections.push(renderScenario(scenario));
+  sections.push(...slotSections);
+  const notes = pack.notes.trim();
+  if (notes) sections.push(`## Notes from the learner\n\n${notes}`);
+
+  const markdown = `${sections.join("\n\n")}\n`;
+
+  // 5. Stats.
+  return { markdown, warnings, stats: countStats(markdown) };
+}
+
+/** Words are whitespace-separated runs; tokens are the contract's words × 1.3
+ *  estimate, rounded (a readout for the voice tool's context limit, not a
+ *  tokenizer). */
+export function countStats(markdown) {
+  const words = markdown.split(/\s+/).filter(Boolean).length;
+  return { words, tokens: Math.round(words * 1.3), chars: markdown.length };
+}
+
+function resolveScenario(content, pack, warn) {
+  const quick = pack.quick_scenario.trim();
+  if (pack.scenario) {
+    const found = (content.scenarios ?? []).find((s) => s.id === pack.scenario);
+    if (found) {
+      if (quick) warn(`The pack has both a scenario ("${pack.scenario}") and a quick scenario; the quick scenario is ignored.`);
+      return found;
+    }
+    warn(`Unknown scenario "${pack.scenario}" (no content/scenarios/${pack.scenario}.md).`);
+  }
+  if (quick) return { id: null, title: QUICK_SCENARIO_TITLE, summary: "", roles: {}, beats: [], vocab: [], body: quick };
+  warn("No scenario selected.");
+  return { id: null, title: NO_SCENARIO_TITLE, summary: "", roles: {}, beats: [], vocab: [], body: "", missing: true };
+}
+
+/**
+ * Replace {{name}} with the effective value. Unknown names, and known names
+ * the profile has no value for, are left as-is and warned about once per
+ * source: a literal "{{level}}" in the export is visible, an empty string
+ * would read as a sentence with a hole in it.
+ */
+function substitute(text, values, source, warn) {
+  return text.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (match, name) => {
+    if (Object.hasOwn(values, name)) return values[name];
+    if (PLACEHOLDERS.includes(name)) warn(`Placeholder {{${name}}} in ${source} has no value (set it in profile.yaml or the pack's overrides); left as-is.`);
+    else warn(`Unknown placeholder {{${name}}} in ${source}; left as-is.`);
+    return match;
+  });
+}
+
+function scalar(v) {
+  if (v == null) return "";
+  if (Array.isArray(v)) return v.map(scalar).filter(Boolean).join(", ");
+  if (typeof v === "object") return Object.entries(v).map(([k, x]) => `${k}: ${scalar(x)}`).join("; ");
+  return String(v).trim().replace(/\s*\n\s*/g, " ");
+}
+
+function humanize(key) {
+  const s = String(key).replace(/[_-]+/g, " ").trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function renderLearner(profile) {
+  const lines = [];
+  const known = new Set();
+  for (const [key, label] of PROFILE_LABELS) {
+    known.add(key);
+    const v = scalar(profile[key]);
+    if (v) lines.push(`- **${label}:** ${v}`);
+  }
+  for (const [key, raw] of Object.entries(profile)) {
+    if (known.has(key)) continue;
+    const v = scalar(raw);
+    if (v) lines.push(`- **${humanize(key)}:** ${v}`);
+  }
+  return lines.length ? `## Learner\n\n${lines.join("\n")}` : "## Learner\n\n_(No learner profile.)_";
+}
+
+/** A table cell: one line, pipes escaped so they don't split the column. */
+function cell(s) {
+  return String(s).replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|").trim();
+}
+
+function renderScenario(s) {
+  if (s.missing) return `## Scenario\n\n${MISSING_SCENARIO_LINE}`;
+  const parts = ["## Scenario", `### ${s.title}`];
+  if (s.summary) parts.push(s.summary);
+  const roles = Object.entries(s.roles ?? {});
+  if (roles.length) {
+    parts.push("**Roles**");
+    parts.push(roles.map(([k, v]) => `- **${ROLE_LABELS[k] ?? humanize(k)}:** ${v}`).join("\n"));
+  }
+  if (s.beats?.length) {
+    parts.push("**Beats**");
+    parts.push(s.beats.map((b, i) => `${i + 1}. ${b}`).join("\n"));
+  }
+  if (s.vocab?.length) {
+    parts.push("**Vocabulary**");
+    parts.push(["| Term | Gloss |", "| --- | --- |", ...s.vocab.map((v) => `| ${cell(v.term)} | ${cell(v.gloss)} |`)].join("\n"));
+  }
+  const body = (s.body ?? "").trimEnd();
+  if (body) parts.push(body);
+  return parts.join("\n\n");
+}

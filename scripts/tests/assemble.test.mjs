@@ -1,0 +1,176 @@
+// The assembler against the "Assembly algorithm" section of docs/CONTENT.md.
+//   node --test scripts/tests/assemble.test.mjs
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { loadContent } from "../content.mjs";
+import { assemble, MISSING_UNIT_LINE, QUICK_SCENARIO_TITLE } from "../assemble.mjs";
+import { FIXTURE } from "./helpers.mjs";
+
+const content = loadContent(FIXTURE);
+const base = {
+  title: "t",
+  scenario: "market",
+  units: ["intro-native", "warmup-vocab", "correct-gently", "debrief-top-three"],
+};
+const run = (over = {}, c = content) => assemble(c, { ...base, ...over });
+/** `## ` headings in output order. */
+const h2 = (md) => md.split("\n").filter((l) => l.startsWith("## ")).map((l) => l.slice(3));
+
+test("renders the contract's sections in order", () => {
+  const { markdown, warnings } = run({ notes: "More numbers." });
+  assert.deepEqual(warnings, []);
+  assert.ok(markdown.startsWith("# Lingo Dogo session: Buying fruit at the market\n\nYou are the dojo master"));
+  assert.deepEqual(h2(markdown), ["Learner", "Scenario", "Introduction", "Warm-up", "Corrections", "Debrief", "Notes from the learner"]);
+  assert.ok(markdown.endsWith("## Notes from the learner\n\nMore numbers.\n"));
+});
+
+test("the fixture pack file assembles cleanly", () => {
+  const { markdown, warnings } = assemble(content, content.packs[0]);
+  assert.deepEqual(warnings, []);
+  assert.match(markdown, /- \*\*Level:\*\* B1/);
+});
+
+test("slot order follows the schema, not the pack", () => {
+  const { markdown } = run({ units: ["debrief-top-three", "correct-gently", "warmup-vocab", "intro-native"] });
+  assert.deepEqual(h2(markdown).slice(2), ["Introduction", "Warm-up", "Corrections", "Debrief"]);
+});
+
+test("within a pick:any slot, units follow pack order", () => {
+  const a = run({ units: ["intro-native", "warmup-vocab", "warmup-odd"] }).markdown;
+  const b = run({ units: ["intro-native", "warmup-odd", "warmup-vocab"] }).markdown;
+  assert.ok(a.indexOf("### Vocabulary warm-up") < a.indexOf("### Odd placeholder warm-up"));
+  assert.ok(b.indexOf("### Odd placeholder warm-up") < b.indexOf("### Vocabulary warm-up"));
+});
+
+test("pick:one with two units warns and keeps the first", () => {
+  const { markdown, warnings } = run({ units: ["intro-native", "correct-strict", "correct-gently"] });
+  assert.deepEqual(warnings, [
+    'Slot "Corrections" takes one unit but the pack has 2 (correct-strict, correct-gently); kept "correct-strict".',
+  ]);
+  assert.match(markdown, /### Strict corrections/);
+  assert.doesNotMatch(markdown, /### Gentle in-line corrections/);
+});
+
+test("a required slot with no unit warns and renders a placeholder line", () => {
+  const { markdown, warnings } = run({ units: ["warmup-vocab"] });
+  assert.deepEqual(warnings, ['Required slot "Introduction" has no unit selected.']);
+  assert.ok(markdown.includes(`## Introduction\n\n${MISSING_UNIT_LINE}\n\n## Warm-up`));
+});
+
+test("empty optional slots are omitted", () => {
+  const { markdown } = run({ units: ["intro-native"] });
+  assert.deepEqual(h2(markdown), ["Learner", "Scenario", "Introduction"]);
+});
+
+test("placeholders are substituted in frame and unit bodies", () => {
+  const { markdown } = run();
+  assert.match(markdown, /practice session with Sam\.\nStay inside the scene "Buying fruit at the market"\./);
+  assert.match(markdown, /Greet Sam in English, set the scene in one sentence,\nthen switch to Mexican Spanish/);
+  assert.doesNotMatch(markdown, /\{\{(learner_name|native_language|target_language|target_variant|scenario_title)\}\}/);
+});
+
+test("an unknown placeholder is left as-is and warned about once", () => {
+  const { markdown, warnings } = run({ units: ["intro-native", "warmup-odd"] });
+  assert.match(markdown, /Ask about the learner's \{\{favorite_color\}\} in Spanish\./);
+  assert.deepEqual(warnings, ['Unknown placeholder {{favorite_color}} in unit "warmup-odd"; left as-is.']);
+});
+
+test("a known placeholder with no value is left as-is and warned about", () => {
+  const c = { ...content, profile: { ...content.profile, level: "" } };
+  const { markdown, warnings } = run({ units: ["intro-target"] }, c);
+  assert.match(markdown, /at level \{\{level\}\}\./);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /^Placeholder \{\{level\}\} in unit "intro-target" has no value/);
+});
+
+test("overrides merge over the profile; blank overrides are ignored", () => {
+  const { markdown } = run({
+    units: ["intro-target"],
+    overrides: { level: "C1", target_language: "Portuguese", target_variant: "", learner_name: null, interests: ["mezcal", "music"] },
+  });
+  assert.match(markdown, /- \*\*Target language:\*\* Portuguese/);
+  assert.match(markdown, /- \*\*Variant:\*\* Mexican Spanish/, "blank override keeps the profile value");
+  assert.match(markdown, /- \*\*Name:\*\* Sam/, "null override keeps the profile value");
+  assert.match(markdown, /- \*\*Level:\*\* C1/);
+  assert.match(markdown, /- \*\*Interests:\*\* mezcal, music/, "a key the profile lacks is added");
+  assert.match(markdown, /Open the session in Portuguese from the first word, at level C1\./);
+  assert.match(markdown, /practice session with Sam/);
+});
+
+test("quick_scenario stands in for a scenario file, titled Quick scenario", () => {
+  const { markdown, warnings } = run({ scenario: "", quick_scenario: "Ordering tacos at 1 a.m.\n\n" });
+  assert.deepEqual(warnings, []);
+  assert.ok(markdown.startsWith(`# Lingo Dogo session: ${QUICK_SCENARIO_TITLE}\n`));
+  assert.ok(markdown.includes(`## Scenario\n\n### ${QUICK_SCENARIO_TITLE}\n\nOrdering tacos at 1 a.m.\n\n## Introduction`));
+  assert.match(markdown, /Stay inside the scene "Quick scenario"\./);
+});
+
+test("scenario id wins over quick_scenario, with a warning", () => {
+  const { markdown, warnings } = run({ quick_scenario: "Something else" });
+  assert.match(markdown, /^# Lingo Dogo session: Buying fruit at the market/);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /quick scenario is ignored/);
+});
+
+test("unknown scenario or none at all warns and renders a placeholder", () => {
+  const unknown = run({ scenario: "nowhere" });
+  assert.ok(unknown.warnings.includes('Unknown scenario "nowhere" (no content/scenarios/nowhere.md).'));
+  assert.match(unknown.markdown, /## Scenario\n\n_\(No scenario selected\./);
+  const none = run({ scenario: "" });
+  assert.deepEqual(none.warnings, ["No scenario selected."]);
+});
+
+test("unknown, duplicate and unslotted units are skipped with warnings", () => {
+  const { markdown, warnings } = run({ units: ["intro-native", "ghost", "intro-native", "orphan-unit"] });
+  assert.deepEqual(warnings, [
+    'Unknown unit "ghost" (no content/units/ghost.md); skipped.',
+    'Unit "intro-native" is listed twice in the pack; included once.',
+    'Unit "orphan-unit" is in slot "interrupts", which is not in schema.yaml; skipped.',
+  ]);
+  assert.equal(markdown.split("### Open in the learner's language").length, 2);
+  assert.doesNotMatch(markdown, /Interrupt politely/);
+});
+
+test("scenario block: roles, beats, vocab table with escaped pipes, body", () => {
+  const { markdown } = run();
+  assert.ok(markdown.includes("- **You (dojo master):** Doña Rosa, the fruit vendor, quick and friendly\n- **Learner:** a visitor buying breakfast"));
+  assert.ok(markdown.includes("1. Greeting at the stall\n2. Asking prices\n3. Paying and saying goodbye"));
+  assert.ok(markdown.includes("| Term | Gloss |\n| --- | --- |\n| ¿Cuánto cuesta? | How much is it? |\n| kilo \\| medio | a kilo \\| a half |"));
+  assert.ok(markdown.includes("The market is loud and crowded."));
+});
+
+test("unit bodies are verbatim apart from placeholders and trimmed trailing whitespace", () => {
+  const { markdown } = run();
+  assert.ok(markdown.includes("### Gentle in-line corrections\n\nWhen the learner makes an error, finish the beat, then offer a more natural\nphrasing in Spanish once and continue.\n\n## Debrief"));
+});
+
+test("notes are omitted when blank", () => {
+  assert.ok(!h2(run({ notes: "  \n " }).markdown).includes("Notes from the learner"));
+});
+
+test("stats: words and ~tokens (words × 1.3)", () => {
+  const { markdown, stats } = run();
+  assert.equal(stats.words, markdown.split(/\s+/).filter(Boolean).length);
+  assert.equal(stats.tokens, Math.round(stats.words * 1.3));
+  assert.ok(stats.words > 100);
+});
+
+test("deterministic: same inputs, byte-identical output, inputs untouched", () => {
+  const pack = { ...base, units: [...base.units, "warmup-odd", "ghost"], overrides: { level: "B2" }, notes: "n" };
+  const snapshot = JSON.stringify([content, pack]);
+  const a = assemble(content, pack);
+  const b = assemble(loadContent(FIXTURE), structuredClone(pack));
+  assert.equal(a.markdown, b.markdown);
+  assert.deepEqual(a.warnings, b.warnings);
+  assert.deepEqual(a.stats, b.stats);
+  assert.equal(JSON.stringify([content, pack]), snapshot, "assemble must not mutate its inputs");
+});
+
+test("a malformed pack body never throws", () => {
+  for (const bad of [null, undefined, 42, "x", [], { units: "intro-native", overrides: [1], notes: 7 }]) {
+    const r = assemble(content, bad);
+    assert.equal(typeof r.markdown, "string");
+    assert.ok(r.warnings.includes("No scenario selected."));
+  }
+});

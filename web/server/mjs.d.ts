@@ -1,0 +1,48 @@
+// The server middleware reuses the repo-root .mjs modules (shared with the
+// export CLI and the tests). They are plain JS, so tsc knows nothing of them
+// beyond what this file says. Copied in shape from Atlas.
+//
+// Each module the server imports is declared precisely, against
+// shared/wire.ts, so a route handler holds a typed value instead of casting an
+// `any`, and a change to a wire type reaches every call site. These are still
+// a promise about untyped code: scripts/tests/ (the loader, assembler and
+// http tests) are what check that the .mjs half keeps it. Each block declares
+// only what the server imports, so a new import fails to compile until it is
+// declared here.
+//
+// ORDER MATTERS. The modules are matched by pattern (an ambient declaration
+// cannot name a relative path), and tsc settles a tie between patterns with
+// the same prefix in favour of the one declared first. The specific modules
+// must stay above the catch-all, or it wins and types them all as `any`.
+//
+// Types come in through `import("…")` type queries rather than an `import`
+// statement: a top-level import would make this file a module, and a pattern
+// declaration inside a module is an augmentation, which tsc refuses.
+
+declare module "*/scripts/content.mjs" {
+  /** Kebab-case id: the guard on every pack/export id from a request. */
+  export const ID_RE: RegExp;
+  export function contentRoot(): string;
+  export function exportsDir(): string;
+  /** Never throws; bad files land in `problems`. */
+  export function loadContent(root?: string): import("../shared/wire.ts").ContentReply & {
+    packs: import("../shared/wire.ts").Pack[];
+  };
+  /** Throws on an id ID_RE rejects or a path outside content/packs. */
+  export function savePack(id: string, pack: unknown, root?: string): string;
+  /** False when there was no such pack. Throws on a bad id. */
+  export function deletePack(id: string, root?: string): boolean;
+  /** Throws on an id ID_RE rejects or a path outside exports/. */
+  export function writeExport(id: string, markdown: string, dir?: string): string;
+}
+
+declare module "*/scripts/assemble.mjs" {
+  /** Pure and deterministic; never throws on a malformed pack. */
+  export function assemble(
+    content: Pick<import("../shared/wire.ts").ContentReply, "schema" | "frame" | "profile" | "units" | "scenarios">,
+    pack: unknown,
+  ): import("../shared/wire.ts").AssembleResult;
+}
+
+// Everything else (claude.mjs, when the chat lands): untyped.
+declare module "*.mjs";

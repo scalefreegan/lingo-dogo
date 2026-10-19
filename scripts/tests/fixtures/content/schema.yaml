@@ -1,0 +1,23 @@
+# Test fixture: a small schema exercising both cardinalities and a required slot.
+version: 1
+slots:
+  - id: intro
+    title: Introduction
+    pick: one
+    required: true
+    description: How the session opens.
+  - id: warmup
+    title: Warm-up
+    pick: any
+    required: false
+    description: Optional drills before the scene.
+  - id: corrections
+    title: Corrections
+    pick: one
+    required: false
+    description: How errors are handled.
+  - id: debrief
+    title: Debrief
+    pick: any
+    required: false
+    description: How the session closes.
