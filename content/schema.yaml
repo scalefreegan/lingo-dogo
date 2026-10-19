@@ -1,56 +1,67 @@
 version: 1
 slots:
   - id: intro
+    group: Session flow
     title: Introduction
     pick: one
     required: true
     description: How the session opens, and in which language.
   - id: narrator
+    group: Voices
     title: Narrator
     pick: one
     required: true
     description: "Who guides between scenes: always a native speaker of the target language; gender and tempo per unit."
   - id: character
+    group: Voices
     title: Character
     pick: one
     required: true
     description: "How the in-scene persona is voiced: as the scenario writes it, or rerolled."
   - id: warmup
+    group: Session flow
     title: Warm-up
     pick: any
     required: false
     description: Optional drills before the scene starts.
   - id: style
+    group: Teaching style
     title: Conversation style
     pick: one
     required: true
     description: Overall pacing and tone of the conversation, e.g. natural flowing vs. slow and scaffolded.
   - id: difficulty
+    group: Teaching style
     title: Difficulty
     pick: one
     required: true
     description: What is expected of the learner's spoken output.
   - id: guidance
+    group: Teaching style
     title: Guidance language
     pick: one
     required: true
     description: Which language the dojo master uses when stepping out of character to guide.
   - id: corrections
+    group: Teaching style
     title: Corrections
     pick: one
     required: true
     description: The policy for correcting the learner's errors.
   - id: interrupts
+    group: Session flow
     title: Interrupts
     pick: any
     required: false
     description: Mid-stream mini-lessons, breaks between scene sections, and vocabulary spotlights.
   - id: variation
+    group: Variation
     title: Variation
     pick: any
     required: false
     description: "Ways the same scenario plays differently from one session to the next."
   - id: debrief
+    group: Session flow
     title: Debrief
     pick: any
     required: false

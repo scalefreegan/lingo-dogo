@@ -29,6 +29,9 @@ slots:
 ```
 
 - Slot order in this list **is** the order sections appear in the export.
+- `group` (optional) is a display heading the UI uses to cluster slots on the
+  Customize step (e.g. Voices, Teaching style, Session flow, Variation). It has
+  no effect on the export. Slots without a group are shown under "Other".
 - `pick: one` renders as radio buttons; `pick: any` as checkboxes.
 - `required: true` with `pick: one` means the pack must select one unit for the
   slot; the assembler returns a warning (not an error) when it is missing and
