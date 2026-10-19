@@ -1,0 +1,246 @@
+import { useState } from "react";
+import { exportPack } from "../api";
+import { splitPackId } from "../draft";
+import type { AssembleResult, ContentReply, ExportResult, PackInput } from "../types";
+import { useCopyStatus } from "../useCopyStatus";
+import { Button, Card, FolderSelect, inputClass } from "./ui";
+import type { PackStatus, SaveOutcome } from "./shared";
+
+/* Go tab: the calm, final screen. What you're about to paste, the ways to
+ * keep it (save, export), and the one way to check your work — the literal
+ * markdown — hidden behind a toggle until you ask for it. */
+export default function GoTab({
+  content,
+  pack,
+  title,
+  sourceId,
+  sceneTitle,
+  learnerLine,
+  exportId,
+  result,
+  pending,
+  error,
+  folders,
+  packStatus,
+  saveRequest,
+  onSave,
+}: {
+  content: ContentReply;
+  pack: PackInput;
+  title: string;
+  sourceId: string | null;
+  sceneTitle: string;
+  learnerLine: string;
+  /** The id Export writes to: the saved pack's stem, else date + slug. */
+  exportId: string;
+  result: AssembleResult | null;
+  pending: boolean;
+  error: string | null;
+  folders: string[];
+  packStatus: PackStatus | null;
+  /** Bumped by the parent to open the save form with a suggested title and folder (Clone). */
+  saveRequest: { title: string; folder: string; seq: number } | null;
+  onSave: (title: string, folder: string, overwrite: boolean) => Promise<SaveOutcome>;
+}) {
+  const [copyStatus, copy] = useCopyStatus();
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [exported, setExported] = useState<ExportResult | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const markdown = result?.markdown ?? "";
+
+  async function doExport() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      setExported(await exportPack(exportId, pack));
+    } catch (e) {
+      setExported(null);
+      setExportError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Card className="flex flex-col gap-1">
+        <h2 className="text-base font-medium text-fg">{sceneTitle || "No scene"}</h2>
+        <p className="text-sm text-fg-2">{learnerLine || "Learner not set"}</p>
+        <p className="text-sm text-fg-3 tabular-nums">
+          {pack.units.length} unit{pack.units.length === 1 ? "" : "s"}
+          {result && ` · ${result.stats.words.toLocaleString()} words · ~${result.stats.tokens.toLocaleString()} tokens`}
+          {pending && " · updating"}
+        </p>
+      </Card>
+
+      {error && <p className="rounded-md bg-err-soft p-3 text-sm text-err">Could not assemble: {error}</p>}
+      {result && result.warnings.length > 0 && (
+        <ul className="flex flex-col gap-1 rounded-md bg-warn-soft p-3 text-sm text-warn" aria-label="Warnings">
+          {result.warnings.map((w) => (
+            <li key={w}>⚠ {w}</li>
+          ))}
+        </ul>
+      )}
+
+      <Button variant="primary" className="self-start px-5 py-2.5 text-base" onClick={() => copy(markdown)} disabled={!markdown}>
+        {copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Copy failed" : "Copy prompt"}
+      </Button>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <SaveButton
+          key={saveRequest?.seq ?? 0}
+          initialOpen={saveRequest != null}
+          suggested={saveRequest?.title ?? (title || defaultTitle(content, pack))}
+          // A loaded pack saves back into its own folder unless told otherwise.
+          suggestedFolder={saveRequest?.folder ?? (sourceId ? splitPackId(sourceId).folder : "")}
+          folders={folders}
+          onSave={onSave}
+        />
+        <Button onClick={() => void doExport()} disabled={!markdown || exporting}>
+          {exporting ? "Exporting…" : "Export file"}
+        </Button>
+      </div>
+      {exported && (
+        <p className="text-xs text-fg-2" data-testid="export-path">
+          Exported to <code className="font-mono break-all">{exported.path}</code>
+        </p>
+      )}
+      {exportError && <p className="text-xs text-err">Export failed: {exportError}</p>}
+
+      {packStatus && (
+        <p className={`text-xs ${packStatus.tone === "ok" ? "text-accent" : "text-err"}`} data-testid="packs-status">
+          {packStatus.text}
+        </p>
+      )}
+
+      <div>
+        <button type="button" className="text-sm text-fg-3 hover:text-fg-2 hover:underline" aria-expanded={showPrompt} onClick={() => setShowPrompt((o) => !o)}>
+          {showPrompt ? "Hide prompt" : "Show prompt"}
+        </button>
+        {showPrompt && (
+          <pre
+            data-testid="preview"
+            className="mt-2 max-h-96 overflow-auto rounded-lg border border-line bg-panel p-4 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap text-fg"
+          >
+            {markdown || (pending ? "Assembling…" : "")}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A title to start the save form with: the scenario's, else a generic one. */
+function defaultTitle(content: ContentReply, pack: PackInput): string {
+  if (pack.quick_scenario.trim()) return pack.quick_scenario.trim().split("\n")[0].slice(0, 60);
+  return content.scenarios.find((s) => s.id === pack.scenario)?.title ?? "";
+}
+
+/** "Save pack" asks for a title and a folder inline (no window.prompt: a
+ *  modal dialog blocks the page and browser automation). A clash with
+ *  another saved pack asks once more before overwriting. */
+function SaveButton({
+  initialOpen,
+  suggested,
+  suggestedFolder,
+  folders,
+  onSave,
+}: {
+  initialOpen: boolean;
+  suggested: string;
+  suggestedFolder: string;
+  folders: string[];
+  onSave: (title: string, folder: string, overwrite: boolean) => Promise<SaveOutcome>;
+}) {
+  const [open, setOpen] = useState(initialOpen);
+  const [value, setValue] = useState(suggested);
+  const [folder, setFolder] = useState(suggestedFolder);
+  const [conflict, setConflict] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(overwrite: boolean) {
+    if (!value.trim()) return;
+    setBusy(true);
+    setMessage(null);
+    const r = await onSave(value.trim(), folder, overwrite);
+    setBusy(false);
+    if (r.ok) {
+      setOpen(false);
+      setConflict(null);
+    } else if ("conflict" in r) {
+      setConflict(r.conflict);
+    } else {
+      setMessage(r.error);
+    }
+  }
+
+  if (!open) {
+    return (
+      <>
+        <Button
+          onClick={() => {
+            setValue(suggested);
+            setFolder(suggestedFolder);
+            setOpen(true);
+            setMessage(null);
+          }}
+        >
+          Save pack
+        </Button>
+        {message && (
+          <span className="text-xs text-err" data-testid="save-message">
+            {message}
+          </span>
+        )}
+      </>
+    );
+  }
+  return (
+    <form
+      className="flex w-full flex-wrap items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit(false);
+      }}
+    >
+      <input
+        autoFocus
+        aria-label="Pack title"
+        className={`${inputClass} min-w-48 flex-1`}
+        placeholder="Pack title"
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setConflict(null);
+        }}
+      />
+      <FolderSelect
+        label="Folder"
+        value={folder}
+        folders={folders}
+        onChange={(f) => {
+          setFolder(f);
+          setConflict(null);
+        }}
+      />
+      {conflict ? (
+        <>
+          <span className="text-xs text-warn">{conflict} already exists.</span>
+          <Button variant="primary" disabled={busy} onClick={() => void submit(true)}>
+            Overwrite
+          </Button>
+        </>
+      ) : (
+        <Button type="submit" variant="primary" disabled={busy || !value.trim()}>
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      )}
+      <Button variant="ghost" onClick={() => setOpen(false)}>
+        Cancel
+      </Button>
+      {message && <span className="w-full text-xs text-err">{message}</span>}
+    </form>
+  );
+}

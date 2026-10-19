@@ -1,0 +1,233 @@
+import { useState, type FormEvent } from "react";
+import { slugify, splitPackId } from "../draft";
+import type { ContentReply, Pack } from "../types";
+import { Badge, Button, FolderSelect, inputClass } from "./ui";
+import type { PackActions } from "./shared";
+
+/** The small button style every row and header action here uses. */
+const small = "px-2 py-1 text-xs";
+
+/* Library tab: every saved pack, grouped by folder ("No folder" first), with
+ * a toolbar to make a folder. The one-line outcome of an action now lives on
+ * the Go tab (that's where saving happens), not here. */
+export default function LibraryTab({
+  packs,
+  folders,
+  content,
+  currentId,
+  onCreateFolder,
+  onDeleteFolder,
+  ...row
+}: PackActions & {
+  packs: Pack[];
+  folders: string[];
+  content: ContentReply;
+  currentId: string | null;
+}) {
+  // null = closed; otherwise the name being typed.
+  const [newFolder, setNewFolder] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Every folder on disk plus any a pack names (one the list has not caught
+  // up with yet): "No folder" first, the rest alphabetical.
+  const names = [...new Set([...folders, ...packs.map((p) => p.folder).filter(Boolean)])].sort();
+  const groups = ["", ...names].map((folder) => ({
+    folder,
+    // Newest first: stems start with the date.
+    packs: packs.filter((p) => p.folder === folder).sort((a, b) => b.id.localeCompare(a.id)),
+  }));
+  const slug = slugify(newFolder ?? "", "");
+
+  async function submitFolder(e: FormEvent) {
+    e.preventDefault();
+    if (!slug) return;
+    setBusy(true);
+    if (await onCreateFolder(slug)) setNewFolder(null);
+    setBusy(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-medium text-fg">
+          Saved packs <span className="text-fg-3">({packs.length})</span>
+        </h2>
+        <div className="ml-auto flex items-center gap-2" data-testid="packs-toolbar">
+          {newFolder === null ? (
+            <Button variant="ghost" className={small} onClick={() => setNewFolder("")}>
+              New folder
+            </Button>
+          ) : (
+            <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => void submitFolder(e)}>
+              <input
+                autoFocus
+                aria-label="Folder name"
+                className={`${inputClass} min-w-32 flex-1`}
+                placeholder="Folder name"
+                value={newFolder}
+                onChange={(e) => setNewFolder(e.target.value)}
+              />
+              {/* The name is slugified like a pack title; show the result when it differs. */}
+              {slug && slug !== newFolder && <span className="font-mono text-xs text-fg-3">{slug}</span>}
+              <Button type="submit" variant="primary" className={small} disabled={busy || !slug}>
+                Create
+              </Button>
+              <Button variant="ghost" className={small} onClick={() => setNewFolder(null)}>
+                Cancel
+              </Button>
+            </form>
+          )}
+        </div>
+      </div>
+
+      {packs.length === 0 && names.length === 0 ? (
+        <p className="text-sm text-fg-3">None yet. Save one on the Go tab to reopen it later.</p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-line" aria-label="Saved packs">
+          {groups.map(
+            (g) =>
+              (g.folder || g.packs.length > 0) && (
+                <section key={g.folder || "/"} aria-label={g.folder || "No folder"} data-testid={`folder-${g.folder || "none"}`}>
+                  <header className="flex items-center gap-2 bg-raised px-4 py-1.5 text-xs font-medium text-fg-2">
+                    <span className={g.folder ? "font-mono" : ""}>{g.folder || "No folder"}</span>
+                    <span className="text-fg-3">({g.packs.length})</span>
+                    {g.folder && g.packs.length === 0 && (
+                      <Button variant="ghost" className={`ml-auto ${small} py-0.5`} onClick={() => void onDeleteFolder(g.folder)}>
+                        Delete folder
+                      </Button>
+                    )}
+                  </header>
+                  <ul>
+                    {g.packs.map((p) => (
+                      <PackRow key={p.id} pack={p} content={content} open={p.id === currentId} folders={names} {...row} />
+                    ))}
+                  </ul>
+                </section>
+              ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One saved pack: Load and Clone up front; Move, Rename and Delete behind a
+ *  "…" toggle, since they change files. Delete is the one action that asks
+ *  (window.confirm — the file goes, though git keeps it). */
+function PackRow({
+  pack: p,
+  content,
+  open,
+  folders,
+  onLoad,
+  onClone,
+  onMove,
+  onRename,
+  onDelete,
+}: Omit<PackActions, "onCreateFolder" | "onDeleteFolder"> & {
+  pack: Pack;
+  content: ContentReply;
+  open: boolean;
+  folders: string[];
+}) {
+  const [mode, setMode] = useState<"closed" | "menu" | "rename">("closed");
+  const [title, setTitle] = useState(p.title);
+  const [busy, setBusy] = useState(false);
+  const { stem } = splitPackId(p.id);
+  const scenario = p.scenario
+    ? (content.scenarios.find((s) => s.id === p.scenario)?.title ?? p.scenario)
+    : p.quick_scenario
+      ? "Quick scenario"
+      : "No scenario";
+
+  /** A move or rename that succeeds re-lists the library under a new id, so
+   *  this row is replaced; closing is for the failure that leaves it here. */
+  async function run(action: Promise<boolean>) {
+    setBusy(true);
+    const ok = await action;
+    setBusy(false);
+    if (ok) setMode("closed");
+  }
+
+  return (
+    <li className="border-b border-line px-4 py-2 last:border-b-0" data-testid={`pack-${p.id}`}>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm text-fg">{p.title}</span>
+            {open && <Badge tone="accent">open</Badge>}
+          </div>
+          <div className="truncate text-xs text-fg-3">
+            <span className="font-mono">{stem.slice(0, 10)}</span> · {scenario} · {p.units.length} units
+          </div>
+        </div>
+        <Button variant="ghost" className={small} onClick={() => onLoad(p)}>
+          Load
+        </Button>
+        <Button variant="ghost" className={small} onClick={() => onClone(p)}>
+          Clone
+        </Button>
+        <Button
+          variant="ghost"
+          className={small}
+          aria-label={`More actions for ${p.title}`}
+          aria-expanded={mode !== "closed"}
+          onClick={() => setMode(mode === "closed" ? "menu" : "closed")}
+        >
+          …
+        </Button>
+      </div>
+      {mode === "menu" && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <label className="flex items-center gap-1.5 text-fg-3">
+            Move to
+            <FolderSelect label={`Move ${p.title} to`} value={p.folder} folders={folders} disabled={busy} onChange={(f) => void run(onMove(p.id, f))} />
+          </label>
+          <Button
+            variant="ghost"
+            className={small}
+            disabled={busy}
+            onClick={() => {
+              setTitle(p.title);
+              setMode("rename");
+            }}
+          >
+            Rename…
+          </Button>
+          <Button
+            variant="ghost"
+            className={`${small} text-err`}
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(`Delete "${p.title}" (${p.id})?\nThe file is removed from content/packs; git keeps its history.`)) void run(onDelete(p.id));
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      )}
+      {mode === "rename" && (
+        <form
+          className="mt-2 flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (title.trim()) void run(onRename(p.id, title.trim()));
+          }}
+        >
+          <input
+            autoFocus
+            aria-label={`New title for ${p.title}`}
+            className={`${inputClass} min-w-40 flex-1`}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <Button type="submit" variant="primary" className={small} disabled={busy || !title.trim()}>
+            Rename
+          </Button>
+          <Button variant="ghost" className={small} onClick={() => setMode("menu")}>
+            Cancel
+          </Button>
+        </form>
+      )}
+    </li>
+  );
+}

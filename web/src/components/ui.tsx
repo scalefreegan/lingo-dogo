@@ -11,10 +11,6 @@ export function Card({ children, className = "", ...rest }: { children: ReactNod
   );
 }
 
-export function ColumnHeading({ children }: { children: ReactNode }) {
-  return <h2 className="mb-3 text-xs font-semibold tracking-wider text-fg-3 uppercase">{children}</h2>;
-}
-
 type Tone = "neutral" | "accent" | "warn" | "err";
 const TONES: Record<Tone, string> = {
   neutral: "bg-raised text-fg-2",
@@ -54,3 +50,38 @@ export function Button({
 
 export const inputClass =
   "w-full rounded-md border border-line bg-panel px-2.5 py-1.5 text-sm text-fg placeholder:text-fg-3 focus:border-accent focus:outline-none";
+
+/** The folder picker the Go tab's save form and a Library row's "Move to" share. */
+export function FolderSelect({
+  value,
+  folders,
+  disabled,
+  label,
+  onChange,
+}: {
+  value: string;
+  folders: string[];
+  disabled?: boolean;
+  label: string;
+  onChange: (folder: string) => void;
+}) {
+  return (
+    <select aria-label={label} className={`${inputClass} w-auto`} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <option value="">No folder</option>
+      {folders.map((f) => (
+        <option key={f} value={f}>
+          {f}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** A chevron that rotates open — the Customize tab's row disclosure. */
+export function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className={`size-4 shrink-0 text-fg-3 transition-transform ${open ? "rotate-180" : ""}`}>
+      <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

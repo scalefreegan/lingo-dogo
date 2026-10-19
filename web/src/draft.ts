@@ -61,6 +61,13 @@ export function profileDefault(profile: Profile, key: OverrideKey, target: strin
   return profileValue(profile, key);
 }
 
+/** The learner line the Scene and Go tabs show, e.g. "English → Spanish ·
+ *  Mexican Spanish (Oaxaca) · A2" — the variant is its own segment, only
+ *  shown when one is set. */
+export function formatSessionLine(session: Record<OverrideKey, string>): string {
+  return [`${session.native_language} → ${session.target_language}`, session.target_variant, session.level].filter(Boolean).join(" · ");
+}
+
 /** The four values the "This session" card shows and the prompt uses:
  *  override if set, else the profile's. Native language falls back to
  *  English when neither says. */
@@ -139,6 +146,29 @@ export function chooseOne(draft: Draft, content: ContentReply, slot: Slot, unitI
 export function toggleAny(draft: Draft, unitId: string, on: boolean): Draft {
   const without = draft.units.filter((id) => id !== unitId);
   return { ...draft, units: on ? [...without, unitId] : without };
+}
+
+/** Slot ids whose current selection differs from a fresh pack's for this
+ *  content — order within the slot doesn't count, only which units are
+ *  chosen. Drives the Customize tab row's dot and the summary bar's "N
+ *  changed from defaults". */
+export function changedSlots(content: ContentReply, draft: Draft): Set<string> {
+  const fresh = newDraft(content).units;
+  const changed = new Set<string>();
+  for (const slot of content.schema.slots) {
+    const inSlot = (id: string) => unitsForSlot(content, slot.id).some((u) => u.id === id);
+    const theirs = new Set(draft.units.filter(inSlot));
+    const defaults = new Set(fresh.filter(inSlot));
+    if (theirs.size !== defaults.size || [...theirs].some((id) => !defaults.has(id))) changed.add(slot.id);
+  }
+  return changed;
+}
+
+/** Customize tab's "Reset to defaults": every slot's units back to the
+ *  schema's `default: true` picks. Scenario, profile overrides, notes and
+ *  title are untouched — only the slot selection resets. */
+export function resetUnitsToDefaults(content: ContentReply, draft: Draft): Draft {
+  return { ...draft, units: newDraft(content).units };
 }
 
 /** The pack the server sees (assemble, export, save). */

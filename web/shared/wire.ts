@@ -23,6 +23,10 @@ export interface Slot {
   required: boolean;
   /** "" when the schema omits it. */
   description: string;
+  /** Display heading the UI clusters slots under on the Customize tab
+   *  (Voices, Teaching style, …); undefined when the schema omits it — the
+   *  UI then groups the slot under "Other". */
+  group?: string;
 }
 
 export interface Schema {

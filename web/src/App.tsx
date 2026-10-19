@@ -3,16 +3,39 @@ import {
   ApiError, assemblePack, createFolder, deleteFolder, deletePack, getContent, listPacks, movePack, renamePack, savePack, saveProfile,
 } from "./api";
 import type { AssembleResult, Committed, ContentReply, Pack, PackInput, PacksReply, Problem, ProfileRequest } from "./types";
-import { draftToPack, emptyOverrides, joinPackId, loadRememberedDraft, localTimestamp, newDraft, packId, packToDraft, rememberDraft, splitPackId, type Draft } from "./draft";
-import ScenarioColumn from "./components/ScenarioColumn";
-import SlotsColumn from "./components/SlotsColumn";
-import PreviewColumn, { type PackStatus, type SaveOutcome } from "./components/PreviewColumn";
+import {
+  draftToPack, emptyOverrides, formatSessionLine, joinPackId, loadRememberedDraft, localTimestamp, newDraft, packId, packToDraft, rememberDraft,
+  sessionValues, splitPackId, type Draft,
+} from "./draft";
+import TopBar from "./components/TopBar";
+import SummaryBar from "./components/SummaryBar";
+import SceneTab from "./components/SceneTab";
+import CustomizeTab from "./components/CustomizeTab";
+import GoTab from "./components/GoTab";
+import LibraryTab from "./components/LibraryTab";
 import AgentDrawer from "./components/AgentDrawer";
-import { Button } from "./components/ui";
+import type { PackStatus, SaveOutcome, Tab } from "./components/shared";
 
 /** Debounce for the live preview: long enough to coalesce typing in the
  *  notes box, short enough that a checkbox feels immediate. */
 const ASSEMBLE_DELAY_MS = 200;
+
+const TAB_KEY = "lingo-dojo.tab.v1";
+
+function isTab(v: string | null): v is Tab {
+  return v === "scene" || v === "customize" || v === "go" || v === "library";
+}
+
+/** The last tab this browser was on — "Scene" the first time, or if storage
+ *  is blocked or holds something unrecognized. */
+function loadRememberedTab(): Tab {
+  try {
+    const raw = localStorage.getItem(TAB_KEY);
+    return isTab(raw) ? raw : "scene";
+  } catch {
+    return "scene";
+  }
+}
 
 export default function App() {
   const [content, setContent] = useState<ContentReply | null>(null);
@@ -34,6 +57,16 @@ export default function App() {
   // only ever sets state from its async callbacks.
   const [settled, setSettled] = useState<{ pack: PackInput; version: number } | null>(null);
   const [saveRequest, setSaveRequest] = useState<{ title: string; folder: string; seq: number } | null>(null);
+  const [tab, setTabState] = useState<Tab>(loadRememberedTab);
+
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    try {
+      localStorage.setItem(TAB_KEY, t);
+    } catch {
+      /* private window or blocked storage: the next visit just starts on Scene */
+    }
+  }, []);
 
   const applyLoad = useCallback((c: ContentReply, p: PacksReply) => {
     setContent(c);
@@ -103,6 +136,11 @@ export default function App() {
     if (pack.quick_scenario.trim()) return "Quick scenario";
     return content.scenarios.find((s) => s.id === pack.scenario)?.title ?? "";
   }, [content, pack]);
+
+  const learnerLine = useMemo(() => {
+    if (!content || !draft) return "";
+    return formatSessionLine(sessionValues(draft, content.profile));
+  }, [content, draft]);
 
   /** Re-list after any pack write, so the library shows what is on disk. */
   async function refreshPacks() {
@@ -200,18 +238,21 @@ export default function App() {
     return null;
   }
 
+  /** Load jumps to Scene: that's where the loaded pack's scenario shows up. */
   function load(p: Pack) {
     setDraft(packToDraft(p));
     setSaveRequest(null);
+    setTab("scene");
   }
 
-  /** Clone = load under a new title: detached from the original file, with
-   *  the save form open so the copy gets its own name (in the same folder,
-   *  until the form says otherwise). */
+  /** Clone = load under a new title, with the save form open so the copy
+   *  gets its own name (in the same folder, until the form says otherwise) —
+   *  jumps to Go, where that save form now lives. */
   function clone(p: Pack) {
     const title = `${p.title} (copy)`;
     setDraft({ ...packToDraft(p), title, sourceId: null, created: "" });
     setSaveRequest((r) => ({ title, folder: p.folder, seq: (r?.seq ?? 0) + 1 }));
+    setTab("go");
   }
 
   // Remember every change; "New pack" below is the way back to the defaults.
@@ -223,57 +264,59 @@ export default function App() {
     if (!content) return;
     setDraft(newDraft(content));
     setSaveRequest(null);
+    setTab("scene");
   }
 
   return (
-    <div className="flex min-h-screen flex-col lg:h-screen">
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel px-4 pr-10">
-        <h1 className="font-semibold tracking-tight text-fg">Lingo Dojo</h1>
-        <span className="hidden text-sm text-fg-3 sm:inline">prompt packs for the dojo master</span>
-        <div className="ml-auto flex gap-2">
-          <Button variant="ghost" onClick={startNew} disabled={!content}>
-            New pack
-          </Button>
-          <Button onClick={() => void reloadContent()} disabled={reloading}>
-            {reloading ? "Reloading…" : "Reload content"}
-          </Button>
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <TopBar tab={tab} onTab={setTab} onNewPack={startNew} onReload={() => void reloadContent()} reloading={reloading} ready={!!content} />
+      {content && draft && pack && (
+        <SummaryBar content={content} draft={draft} pack={pack} sceneTitle={scenarioTitle} result={result} pending={assembling} onTab={setTab} />
+      )}
 
       {loadError && <p className="bg-err-soft px-4 py-2 text-sm text-err">Could not load content: {loadError}</p>}
       {content && content.problems.length > 0 && <ProblemsStrip problems={content.problems} />}
 
       {content && draft && pack ? (
-        <main className="grid flex-1 grid-cols-1 gap-5 p-4 lg:min-h-0 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)_minmax(0,1.3fr)] lg:pr-10">
-          <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-            <ScenarioColumn content={content} draft={draft} onChange={setDraft} onSaveDefaults={saveDefaults} />
-          </div>
-          <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-            <SlotsColumn content={content} draft={draft} onChange={setDraft} />
-          </div>
-          <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-            <PreviewColumn
-              content={content}
-              pack={pack}
-              title={draft.title}
-              sourceId={draft.sourceId}
-              exportId={draft.sourceId ? splitPackId(draft.sourceId).stem : packId(draft.title || scenarioTitle || "session")}
-              result={result}
-              pending={assembling}
-              error={assembleError}
-              packs={packs}
-              folders={folders}
-              packStatus={packStatus}
-              saveRequest={saveRequest}
-              onSave={save}
-              onLoad={load}
-              onClone={clone}
-              onMove={move}
-              onRename={rename}
-              onDelete={remove}
-              onCreateFolder={addFolder}
-              onDeleteFolder={removeFolder}
-            />
+        <main className="flex-1 p-4">
+          <div className="mx-auto flex w-full max-w-3xl flex-col">
+            {tab === "scene" && (
+              <SceneTab content={content} draft={draft} onChange={setDraft} onSaveDefaults={saveDefaults} onNext={() => setTab("customize")} />
+            )}
+            {tab === "customize" && <CustomizeTab content={content} draft={draft} onChange={setDraft} onNext={() => setTab("go")} />}
+            {tab === "go" && (
+              <GoTab
+                content={content}
+                pack={pack}
+                title={draft.title}
+                sourceId={draft.sourceId}
+                sceneTitle={scenarioTitle}
+                learnerLine={learnerLine}
+                exportId={draft.sourceId ? splitPackId(draft.sourceId).stem : packId(draft.title || scenarioTitle || "session")}
+                result={result}
+                pending={assembling}
+                error={assembleError}
+                folders={folders}
+                packStatus={packStatus}
+                saveRequest={saveRequest}
+                onSave={save}
+              />
+            )}
+            {tab === "library" && (
+              <LibraryTab
+                packs={packs}
+                folders={folders}
+                content={content}
+                currentId={draft.sourceId}
+                onLoad={load}
+                onClone={clone}
+                onMove={move}
+                onRename={rename}
+                onDelete={remove}
+                onCreateFolder={addFolder}
+                onDeleteFolder={removeFolder}
+              />
+            )}
           </div>
         </main>
       ) : (
