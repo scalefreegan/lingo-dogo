@@ -26,13 +26,13 @@
 -- The server runs on the FIXED port below (strictPort in web/vite.config.ts),
 -- so health checks and the app URL are deterministic.
 -- Built and installed by macos/build-app.sh (osacompile -s for stay-open),
--- which substitutes __LINGODOGO_REPO__ with the checkout it was built from.
+-- which substitutes __LINGODOJO_REPO__ with the checkout it was built from.
 
 property dashUrl : "http://localhost:38400"
 -- ($| ) not $: still matches a vite launched with arguments (--host), while
 -- excluding `vite build` / `vite preview` whose first arg is a subcommand.
 -- Anchored on THIS checkout's path so a worktree's server is never matched.
-property killPattern : "__LINGODOGO_REPO__/web/node_modules/.bin/vite($| --)"
+property killPattern : "__LINGODOJO_REPO__/web/node_modules/.bin/vite($| --)"
 property wasUp : false
 -- Quit must not kill a server this app merely ADOPTED (a manual `npm run
 -- dev`, a worktree's server) — only one it launched itself.

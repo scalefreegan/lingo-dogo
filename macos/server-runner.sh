@@ -22,7 +22,7 @@ LOG="$HOME/Library/Logs/LingoDojo.log"
 # not destroy it
 if [ -f "$LOG" ]; then mv -f "$LOG" "$LOG.old"; fi
 {
-  echo "lingo dogo server starting $(date) (repo $REPO)"
+  echo "lingo dojo server starting $(date) (repo $REPO)"
   # a real readdir, not test -r: TCC denial intercepts open/readdir but can
   # let access(2) succeed, and this guard exists precisely for that denial
   if ! ls "$REPO/web" >/dev/null 2>&1; then
