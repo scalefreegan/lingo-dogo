@@ -129,7 +129,7 @@ function strList(v) {
 
 /**
  * Load and validate everything under the content root.
- * Returns `{ root, schema, frame, profile, units, scenarios, packs, problems }`;
+ * Returns `{ root, schema, frame, profile, languages, units, scenarios, packs, problems }`;
  * `problems` is `[{ file, level: "error"|"warning", message }]`.
  */
 export function loadContent(root = contentRoot()) {
@@ -145,6 +145,7 @@ export function loadContent(root = contentRoot()) {
   const frame = frameRead.text ? cleanBody(frameRead.text.replace(/\r\n?/g, "\n")) : "";
 
   const profile = loadProfile(path.join(root, "profile.yaml"), report);
+  const languages = loadLanguages(path.join(root, "languages.yaml"), report);
 
   const units = [];
   const unitsDir = path.join(root, "units");
@@ -172,7 +173,7 @@ export function loadContent(root = contentRoot()) {
     if (pack) packs.push(pack);
   }
 
-  return { root, schema, frame, profile, units, scenarios, packs, problems };
+  return { root, schema, frame, profile, languages, units, scenarios, packs, problems };
 }
 
 function loadYamlFile(abs, report) {
@@ -231,6 +232,52 @@ function loadProfile(abs, report) {
     return {};
   }
   return raw;
+}
+
+/**
+ * languages.yaml → `[{ name, variants }]` for the language pickers. The file
+ * is optional (without it the UI falls back to free-text fields), so a
+ * missing file is a warning rather than an error; a file that is there but
+ * off-contract is an error, and a bad entry is skipped so the rest still
+ * load. Names are deduplicated: the UI keys its options by name.
+ */
+function loadLanguages(abs, report) {
+  const read = readText(abs);
+  if (read.error) {
+    const missing = !fs.existsSync(abs);
+    report(abs, missing ? "warning" : "error", missing ? "file is missing; the language pickers fall back to free text" : read.error);
+    return [];
+  }
+  let raw;
+  try {
+    raw = YAML.parse(read.text);
+  } catch (e) {
+    report(abs, "error", `not valid YAML: ${firstLine(e)}`);
+    return [];
+  }
+  if (!isObj(raw) || !Array.isArray(raw.languages)) {
+    report(abs, "error", "languages.yaml must be a YAML mapping with a `languages` list");
+    return [];
+  }
+  const languages = [];
+  const seen = new Set();
+  raw.languages.forEach((l, i) => {
+    const where = `languages[${i}]`;
+    if (!isObj(l) || !isStr(l.name)) return report(abs, "error", `${where} needs a non-empty \`name\`; skipped`);
+    const name = l.name.trim();
+    if (l.variants != null && !Array.isArray(l.variants)) {
+      return report(abs, "error", `${where} (${name}): \`variants\` must be a list of strings; skipped`);
+    }
+    if (seen.has(name)) return report(abs, "warning", `${where}: duplicate language "${name}"; kept the first`);
+    seen.add(name);
+    const variants = [];
+    (l.variants ?? []).forEach((v, j) => {
+      if (isStr(v)) variants.push(v.trim());
+      else report(abs, "warning", `${where} (${name}): variants[${j}] is not a string; skipped`);
+    });
+    languages.push({ name, variants });
+  });
+  return languages;
 }
 
 /** Shared by units and scenarios: read, split, check required keys and that
@@ -395,6 +442,38 @@ export function deletePack(id, root = contentRoot()) {
     if (e?.code === "ENOENT") return false;
     throw e;
   }
+}
+
+/* -------------------------------- profile -------------------------------- */
+
+/**
+ * Merge `patch` (profile key → string) into content/profile.yaml and write it
+ * back: the UI's "Save as my defaults". The file is edited as a parsed YAML
+ * document rather than re-serialised from a plain object, so the keys the
+ * patch doesn't name keep their order, comments and block style (a long
+ * folded block may be re-wrapped to yaml's line width; its text is unchanged). A blank
+ * value removes the key: the assembler already reads a blank as absent, and
+ * saving "no variant" should not leave `target_variant: ""` behind. Throws
+ * when the existing file is not a YAML mapping — overwriting a file the
+ * loader is already reporting as broken would destroy what a person could
+ * still fix by hand. Returns the absolute path.
+ */
+export function saveProfile(patch, root = contentRoot()) {
+  const abs = path.join(root, "profile.yaml");
+  const read = readText(abs);
+  if (read.error && fs.existsSync(abs)) throw new Error(`${displayPath(abs)}: ${read.error}`);
+  const doc = read.text === undefined ? new YAML.Document({}) : YAML.parseDocument(read.text);
+  if (doc.errors.length) throw new Error(`${displayPath(abs)} is not valid YAML; fix it before saving defaults`);
+  if (doc.contents == null) doc.contents = doc.createNode({});
+  if (!YAML.isMap(doc.contents)) throw new Error(`${displayPath(abs)} must be a YAML mapping`);
+  for (const [key, value] of Object.entries(patch)) {
+    const s = value == null ? "" : String(value).trim();
+    if (s) doc.set(key, s);
+    else doc.delete(key);
+  }
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, doc.toString());
+  return abs;
 }
 
 /** Write exports/<id>.md (mkdir -p). Returns the absolute path. */

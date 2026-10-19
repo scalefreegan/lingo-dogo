@@ -49,9 +49,20 @@ export function assemble(content, rawPack) {
   // 1. Effective profile: profile.yaml with the pack's overrides on top. A
   //    blank override (an emptied form field) means "no override", not "erase".
   const profile = { ...(content.profile ?? {}) };
+  const overridden = new Set();
   for (const [k, v] of Object.entries(pack.overrides)) {
     if (v == null || (typeof v === "string" && v.trim() === "")) continue;
     profile[k] = v;
+    overridden.add(k);
+  }
+  //    The one key that doesn't survive a merge on its own: a variant belongs
+  //    to its language, so a pack that moves target_language to a different
+  //    language drops the profile's target_variant unless it sets its own.
+  //    Without this, "target Japanese" would still carry "Mexican Spanish
+  //    (Oaxaca)" into the prompt, and no pack could say "no variant".
+  const baseTarget = content.profile?.target_language;
+  if (overridden.has("target_language") && !overridden.has("target_variant") && String(profile.target_language) !== String(baseTarget ?? "")) {
+    delete profile.target_variant;
   }
 
   // 2. Scenario: by id, or the quick-scenario text as an ad hoc one.
@@ -62,6 +73,10 @@ export function assemble(content, rawPack) {
     const v = key === "scenario_title" ? scenario.title : profile[key];
     if (v != null && String(v).trim() !== "") values[key] = String(v);
   }
+  // A learner with no regional variant is still learning a language: let
+  // "{{target_variant}}" read as the language name so frame.md and units can
+  // use it unconditionally without printing a bare placeholder.
+  if (!values.target_variant && values.target_language) values.target_variant = values.target_language;
   const fill = (text, source) => substitute(text, values, source, warn);
 
   // 3. Slots in schema order; each slot's units in pack order.

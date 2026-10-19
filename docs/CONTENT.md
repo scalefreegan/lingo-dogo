@@ -60,7 +60,8 @@ grammar unless the learner asks.
 - Body may use these placeholders, substituted at assembly time:
   `{{learner_name}}`, `{{native_language}}`, `{{target_language}}`,
   `{{target_variant}}`, `{{level}}`, `{{scenario_title}}`. Unknown placeholders
-  are left as-is and reported as a warning.
+  are left as-is and reported as a warning. When the effective profile has no
+  `target_variant`, `{{target_variant}}` renders as the target language name.
 - `id` is kebab-case and unique across units. Filename is `<id>.md`.
 
 ## `content/scenarios/<id>.md` — a scenario
@@ -103,6 +104,23 @@ goals: Hold a relaxed conversation while traveling; understand fast replies.
 notes: Prefers to be corrected, not coddled.
 ```
 
+## `content/languages.yaml` — the language pickers
+
+```yaml
+version: 1
+languages:
+  - name: Spanish
+    variants: [Mexican Spanish (Oaxaca), Castilian Spanish (Spain)]
+  - name: Japanese
+    variants: []
+```
+
+Feeds the native-language and target-language dropdowns and the variant
+dropdown that depends on the chosen target. `name` is the string the prompt
+uses. The file is optional: if it is missing the loader reports a problem and
+the UI falls back to free-text fields. The native language defaults to the
+profile's `native_language`, or English when the profile has none.
+
 ## `content/packs/<date>-<slug>.yaml` — a saved pack
 
 ```yaml
@@ -117,7 +135,7 @@ units:                           # unit ids; order within a slot follows the pac
   - guidance-target
   - correct-gently
   - debrief-top-three
-overrides:                       # optional, any profile key
+overrides:                       # optional, any profile key (native_language too)
   level: B1
 notes: |
   Today I'd like extra practice with prices and numbers.
@@ -136,7 +154,11 @@ short for speech, etc.). It may use the same placeholders as units.
 
 Input: loaded content + one pack. Output: `{ markdown, warnings[], stats }`.
 
-1. Resolve the effective profile: `profile.yaml` merged with `pack.overrides`.
+1. Resolve the effective profile: `profile.yaml` merged with `pack.overrides`. A
+   blank override means "no override", not "erase". One exception: a variant
+   belongs to its language, so an override that moves `target_language` to a
+   different language drops the profile's `target_variant` unless the pack
+   overrides that too.
 2. Resolve the scenario: by id, or `quick_scenario` text as an ad hoc scenario with
    title "Quick scenario".
 3. Walk `schema.slots` in order. For each slot, take the pack's units with that

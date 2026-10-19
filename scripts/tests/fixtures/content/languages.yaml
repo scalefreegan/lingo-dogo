@@ -1,0 +1,11 @@
+version: 1
+languages:
+  - name: English
+    variants: [American English, British English]
+  - name: Spanish
+    variants: [Mexican Spanish, Castilian Spanish (Spain)]
+  - name: Japanese
+    variants: [Standard Japanese (Tokyo), Kansai dialect]
+  - name: Italian
+    variants: []
+  - name: Korean

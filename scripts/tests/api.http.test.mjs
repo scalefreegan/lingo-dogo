@@ -53,11 +53,13 @@ test("sameOrigin: no Origin passes, a matching host passes, anything else is ref
 });
 
 test("a cross-origin request is refused on every route", async () => {
-  for (const [m, u] of [["GET", "/api/content"], ["POST", "/api/assemble"], ["PUT", "/api/packs/2026-10-20-x"], ["POST", "/api/export"]]) {
-    const r = await call(m, u, m === "GET" ? undefined : { pack, id: "x" }, { Origin: "https://evil.example" });
+  const profileBefore = fs.readFileSync(path.join(root, "profile.yaml"), "utf8");
+  for (const [m, u] of [["GET", "/api/content"], ["POST", "/api/assemble"], ["PUT", "/api/packs/2026-10-20-x"], ["POST", "/api/export"], ["PUT", "/api/profile"]]) {
+    const r = await call(m, u, m === "GET" ? undefined : { pack, id: "x", level: "C2" }, { Origin: "https://evil.example" });
     assert.equal(r.status, 403, `${m} ${u}`);
   }
   assert.ok(!fs.existsSync(path.join(root, "packs", "2026-10-20-x.yaml")));
+  assert.equal(fs.readFileSync(path.join(root, "profile.yaml"), "utf8"), profileBefore);
 });
 
 test("GET /api/content: the library without packs, problems included", async () => {
@@ -65,8 +67,43 @@ test("GET /api/content: the library without packs, problems included", async () 
   assert.equal(status, 200);
   assert.deepEqual(body.schema.slots.map((s) => s.id), ["intro", "warmup", "corrections", "debrief"]);
   assert.ok(body.units.some((u) => u.id === "intro-native"));
+  assert.deepEqual(body.languages.map((l) => l.name), ["English", "Spanish", "Japanese", "Italian", "Korean"]);
   assert.equal(body.packs, undefined);
   assert.equal(body.problems.length, 2);
+});
+
+test("PUT /api/profile merges the picker keys into profile.yaml, keeps the rest, and validates the body", async () => {
+  const file = path.join(root, "profile.yaml");
+  const before = fs.readFileSync(file, "utf8");
+  try {
+    const r = await call("PUT", "/api/profile", { target_language: "Japanese", target_variant: "Kansai dialect", level: "B1" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.profile.target_language, "Japanese");
+    assert.equal(r.body.profile.learner_name, "Sam", "keys the body doesn't name are kept");
+    const text = fs.readFileSync(file, "utf8");
+    assert.ok(text.startsWith("learner_name: Sam\nnative_language: English\ntarget_language: Japanese\ntarget_variant: Kansai dialect\nlevel: B1\ngoals: "), text);
+    assert.equal((await call("GET", "/api/content")).body.profile.level, "B1", "the next content read sees it");
+
+    // a blank value removes the key
+    const cleared = await call("PUT", "/api/profile", { target_variant: "" });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.profile.target_variant, undefined);
+    assert.doesNotMatch(fs.readFileSync(file, "utf8"), /target_variant/);
+
+    // rejected bodies: unknown key, non-string, too long, not an object, empty, not JSON
+    const after = fs.readFileSync(file, "utf8");
+    for (const bad of [{ learner_name: "Eve" }, { level: 42 }, { level: "x".repeat(81) }, { level: "B1", goals: "" }, [], {}, "{not json"]) {
+      const r = await call("PUT", "/api/profile", bad);
+      assert.equal(r.status, 400, JSON.stringify(bad));
+      assert.match(r.body.error, /./);
+    }
+    assert.equal(fs.readFileSync(file, "utf8"), after, "a rejected body writes nothing");
+    assert.equal((await call("GET", "/api/profile")).status, 405);
+    assert.equal((await call("PUT", "/api/profile/extra", { level: "A1" })).status, 404);
+    assert.equal(fs.readFileSync(file, "utf8"), after);
+  } finally {
+    fs.writeFileSync(file, before); // the later tests assemble against the fixture profile
+  }
 });
 
 test("GET /api/content re-reads disk on every call", async () => {

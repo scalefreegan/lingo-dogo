@@ -3,14 +3,19 @@
  * live in one place and read like the contract they implement
  * (docs/CONTENT.md: "order within a slot follows the pack"). */
 
-import type { ContentReply, Pack, PackInput, Slot, Unit } from "./types";
+import type { ContentReply, Language, Pack, PackInput, PickerKey, Profile, Slot, Unit } from "./types";
 
-export type OverrideKey = "target_language" | "target_variant" | "level";
+export type OverrideKey = PickerKey;
 export const OVERRIDE_FIELDS: { key: OverrideKey; label: string }[] = [
+  { key: "native_language", label: "Native language" },
   { key: "target_language", label: "Target language" },
   { key: "target_variant", label: "Variant" },
   { key: "level", label: "Level" },
 ];
+
+/** CEFR, the level picker's options; a profile level outside the list is
+ *  still shown (prepended), never silently replaced. */
+export const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
 export interface Draft {
   /** "" until saved or loaded. */
@@ -34,7 +39,55 @@ export interface Draft {
   extraOverrides: Record<string, unknown>;
 }
 
-const emptyOverrides = (): Record<OverrideKey, string> => ({ target_language: "", target_variant: "", level: "" });
+export const emptyOverrides = (): Record<OverrideKey, string> => ({
+  native_language: "", target_language: "", target_variant: "", level: "",
+});
+
+/* ------------------------------- pickers -------------------------------- */
+
+/** The profile's value for a picker key, "" when absent or not a string. */
+export function profileValue(profile: Profile, key: OverrideKey): string {
+  const v = profile[key];
+  return typeof v === "string" ? v : "";
+}
+
+/** What the prompt uses for a key when the pack has no override: the
+ *  profile's value — except that the profile's variant only applies while
+ *  the target is the profile's target. That mirrors the assembler (a variant
+ *  belongs to its language), so the picker shows what the preview will say. */
+export function profileDefault(profile: Profile, key: OverrideKey, target: string): string {
+  if (key === "target_variant" && target !== profileValue(profile, "target_language")) return "";
+  return profileValue(profile, key);
+}
+
+/** The four values the "This session" card shows and the prompt uses:
+ *  override if set, else the profile's. Native language falls back to
+ *  English when neither says. */
+export function sessionValues(draft: Draft, profile: Profile): Record<OverrideKey, string> {
+  const o = draft.overrides;
+  const target = o.target_language || profileValue(profile, "target_language");
+  const pick = (key: OverrideKey) => o[key] || profileDefault(profile, key, target);
+  return {
+    native_language: pick("native_language") || "English",
+    target_language: target,
+    target_variant: pick("target_variant"),
+    level: pick("level"),
+  };
+}
+
+/** Choose a picker value. Choosing what the profile already says clears the
+ *  override (a saved pack carries only what differs from the profile);
+ *  anything else sets it. Changing the target drops a variant override that
+ *  doesn't belong to the new target. */
+export function choosePickerValue(draft: Draft, profile: Profile, languages: Language[], key: OverrideKey, value: string): Draft {
+  const target = key === "target_language" ? value : sessionValues(draft, profile).target_language;
+  const overrides = { ...draft.overrides, [key]: value === profileDefault(profile, key, target) ? "" : value };
+  if (key === "target_language") {
+    const variants = languages.find((l) => l.name === value)?.variants ?? [];
+    if (overrides.target_variant && !variants.includes(overrides.target_variant)) overrides.target_variant = "";
+  }
+  return { ...draft, overrides };
+}
 
 /** A new pack: each slot's `default: true` units preselected, in schema
  *  order. A pick:one slot keeps only its first default, so a fresh pack never

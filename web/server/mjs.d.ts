@@ -34,6 +34,9 @@ declare module "*/scripts/content.mjs" {
   export function savePack(id: string, pack: unknown, root?: string): string;
   /** False when there was no such pack. Throws on a bad id. */
   export function deletePack(id: string, root?: string): boolean;
+  /** Merges the patch into content/profile.yaml in place (a blank value
+   *  removes the key). Throws when the existing file is not a YAML mapping. */
+  export function saveProfile(patch: import("../shared/wire.ts").ProfileRequest, root?: string): string;
   /** Throws on an id ID_RE rejects or a path outside exports/. */
   export function writeExport(id: string, markdown: string, dir?: string): string;
 }

@@ -87,15 +87,39 @@ test("a known placeholder with no value is left as-is and warned about", () => {
 test("overrides merge over the profile; blank overrides are ignored", () => {
   const { markdown } = run({
     units: ["intro-target"],
-    overrides: { level: "C1", target_language: "Portuguese", target_variant: "", learner_name: null, interests: ["mezcal", "music"] },
+    overrides: {
+      level: "C1", target_language: "Portuguese", target_variant: "European Portuguese", goals: "", learner_name: null, interests: ["mezcal", "music"],
+    },
   });
   assert.match(markdown, /- \*\*Target language:\*\* Portuguese/);
-  assert.match(markdown, /- \*\*Variant:\*\* Mexican Spanish/, "blank override keeps the profile value");
+  assert.match(markdown, /- \*\*Variant:\*\* European Portuguese/);
+  assert.match(markdown, /- \*\*Goals:\*\* Order food and chat with vendors\./, "blank override keeps the profile value");
   assert.match(markdown, /- \*\*Name:\*\* Sam/, "null override keeps the profile value");
   assert.match(markdown, /- \*\*Level:\*\* C1/);
   assert.match(markdown, /- \*\*Interests:\*\* mezcal, music/, "a key the profile lacks is added");
   assert.match(markdown, /Open the session in Portuguese from the first word, at level C1\./);
   assert.match(markdown, /practice session with Sam/);
+});
+
+test("a native_language override reaches the Learner block and {{native_language}}", () => {
+  const { markdown, warnings } = run({ units: ["intro-native"], overrides: { native_language: "German" } });
+  assert.deepEqual(warnings, []);
+  assert.match(markdown, /- \*\*Native language:\*\* German/);
+  assert.match(markdown, /Greet Sam in German, set the scene/);
+});
+
+test("a target_language override to another language drops the profile's variant unless the pack sets one", () => {
+  const moved = run({ overrides: { target_language: "Japanese" } });
+  assert.match(moved.markdown, /- \*\*Target language:\*\* Japanese/);
+  assert.doesNotMatch(moved.markdown, /\*\*Variant:\*\*/, "Mexican Spanish is not a variant of Japanese");
+  assert.deepEqual(moved.warnings, [], "no variant is not a problem: {{target_variant}} reads as the language");
+  assert.match(moved.markdown, /then switch to Japanese for the rest of the session/);
+  const own = run({ overrides: { target_language: "Japanese", target_variant: "Kansai dialect" } });
+  assert.match(own.markdown, /- \*\*Variant:\*\* Kansai dialect/);
+  const same = run({ overrides: { target_language: "Spanish" } });
+  assert.match(same.markdown, /- \*\*Variant:\*\* Mexican Spanish/, "the profile's own target keeps its variant");
+  const blank = run({ overrides: { target_variant: "" } });
+  assert.match(blank.markdown, /- \*\*Variant:\*\* Mexican Spanish/, "a blank variant alone is still no override");
 });
 
 test("quick_scenario stands in for a scenario file, titled Quick scenario", () => {
@@ -173,4 +197,13 @@ test("a malformed pack body never throws", () => {
     assert.equal(typeof r.markdown, "string");
     assert.ok(r.warnings.includes("No scenario selected."));
   }
+});
+
+test("{{target_variant}} falls back to the target language when no variant applies", async () => {
+  const { loadContent } = await import("../content.mjs");
+  const { assemble } = await import("../assemble.mjs");
+  const content = await loadContent();
+  const out = assemble(content, { title: "t", scenario: "", quick_scenario: "x", units: [], overrides: { target_language: "Japanese" }, notes: "" });
+  assert.ok(!out.markdown.includes("{{target_variant}}"), "placeholder must not leak");
+  assert.ok(!out.warnings.some((w) => w.includes("target_variant")), out.warnings.join("\n"));
 });

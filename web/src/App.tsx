@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, assemblePack, getContent, listPacks, savePack } from "./api";
-import type { AssembleResult, ContentReply, Pack, PackInput, PacksReply, Problem } from "./types";
-import { draftToPack, localTimestamp, newDraft, packId, packToDraft, type Draft } from "./draft";
+import { ApiError, assemblePack, getContent, listPacks, savePack, saveProfile } from "./api";
+import type { AssembleResult, ContentReply, Pack, PackInput, PacksReply, Problem, ProfileRequest } from "./types";
+import { draftToPack, emptyOverrides, localTimestamp, newDraft, packId, packToDraft, type Draft } from "./draft";
 import ScenarioColumn from "./components/ScenarioColumn";
 import SlotsColumn from "./components/SlotsColumn";
 import PreviewColumn, { type SaveOutcome } from "./components/PreviewColumn";
@@ -113,6 +113,21 @@ export default function App() {
     }
   }
 
+  /** "Save as my defaults": write the pickers' values to profile.yaml, reload
+   *  so content.profile is the new file, then clear the four overrides — they
+   *  are the defaults now, so neither the draft nor a pack saved from it
+   *  should repeat them. Resolves to an error sentence, or null. */
+  async function saveDefaults(values: ProfileRequest): Promise<string | null> {
+    try {
+      await saveProfile(values);
+    } catch (e) {
+      return e instanceof ApiError ? e.message : String(e);
+    }
+    await reloadContent();
+    setDraft((d) => (d ? { ...d, overrides: emptyOverrides() } : d));
+    return null;
+  }
+
   function load(p: Pack) {
     setDraft(packToDraft(p));
     setSaveRequest(null);
@@ -153,7 +168,7 @@ export default function App() {
       {content && draft && pack ? (
         <main className="grid flex-1 grid-cols-1 gap-5 p-4 lg:min-h-0 lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)_minmax(0,1.3fr)] lg:pr-10">
           <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-            <ScenarioColumn content={content} draft={draft} onChange={setDraft} />
+            <ScenarioColumn content={content} draft={draft} onChange={setDraft} onSaveDefaults={saveDefaults} />
           </div>
           <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-1">
             <SlotsColumn content={content} draft={draft} onChange={setDraft} />

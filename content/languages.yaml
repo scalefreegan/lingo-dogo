@@ -1,0 +1,35 @@
+# Languages offered in the native/target pickers. Add a language or a
+# variant here and it appears in the app on the next content reload. `name`
+# is what the prompt says; `variants` are optional regional flavors.
+version: 1
+languages:
+  - name: English
+    variants: [American English, British English, Australian English]
+  - name: Spanish
+    variants: [Mexican Spanish (Oaxaca), Mexican Spanish, Castilian Spanish (Spain), Argentine Spanish, Colombian Spanish]
+  - name: French
+    variants: [Metropolitan French, Québécois French]
+  - name: German
+    variants: [Standard German (Germany), Austrian German, Swiss German]
+  - name: Italian
+    variants: []
+  - name: Portuguese
+    variants: [Brazilian Portuguese, European Portuguese]
+  - name: Japanese
+    variants: [Standard Japanese (Tokyo), Kansai dialect]
+  - name: Mandarin Chinese
+    variants: [Mainland Mandarin (Putonghua), Taiwanese Mandarin]
+  - name: Korean
+    variants: []
+  - name: Dutch
+    variants: []
+  - name: Russian
+    variants: []
+  - name: Arabic
+    variants: [Modern Standard Arabic, Egyptian Arabic, Levantine Arabic, Moroccan Arabic]
+  - name: Hindi
+    variants: []
+  - name: Greek
+    variants: []
+  - name: Swedish
+    variants: []

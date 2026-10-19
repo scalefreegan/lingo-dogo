@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
 import {
-  loadContent, loadPackFile, parseFrontmatter, savePack, deletePack, writeExport, safeJoin, contentRoot,
+  loadContent, loadPackFile, parseFrontmatter, savePack, deletePack, saveProfile, writeExport, safeJoin, contentRoot,
 } from "../content.mjs";
 import { FIXTURE, copyFixture, write } from "./helpers.mjs";
 
@@ -29,6 +29,50 @@ test("loads the fixture tree: schema order, units, scenarios, packs, profile, fr
   assert.deepEqual(c.packs.map((p) => p.id), ["2026-10-19-market-gentle"]);
   assert.equal(c.profile.learner_name, "Sam");
   assert.match(c.frame, /^You are the dojo master/);
+  // languages.yaml: file order, variants [] when the key is absent
+  assert.deepEqual(c.languages.map((l) => l.name), ["English", "Spanish", "Japanese", "Italian", "Korean"]);
+  assert.deepEqual(c.languages[2].variants, ["Standard Japanese (Tokyo)", "Kansai dialect"]);
+  assert.deepEqual(c.languages[4], { name: "Korean", variants: [] });
+});
+
+test("languages.yaml: missing is a warning and an empty list; off-contract is an error; bad entries are skipped", () => {
+  const root = copyFixture();
+  const file = path.join(root, "languages.yaml");
+  fs.rmSync(file);
+  let c = loadContent(root);
+  assert.deepEqual(c.languages, []);
+  assert.deepEqual(problemFor(c, "languages.yaml").map((p) => p.level), ["warning"]);
+  assert.match(problemFor(c, "languages.yaml")[0].message, /file is missing; the language pickers fall back to free text/);
+
+  write(root, "languages.yaml", "languages: {name: nope}\n");
+  c = loadContent(root);
+  assert.deepEqual(c.languages, []);
+  assert.match(problemFor(c, "languages.yaml").map((p) => `${p.level}: ${p.message}`).join(), /^error: languages\.yaml must be a YAML mapping with a `languages` list$/);
+
+  write(root, "languages.yaml", "languages: [unclosed\n");
+  c = loadContent(root);
+  assert.deepEqual(c.languages, []);
+  assert.match(problemFor(c, "languages.yaml")[0].message, /^not valid YAML/);
+
+  write(root, "languages.yaml", [
+    "languages:",
+    "  - name: Ok",
+    "    variants: [A, 3]",
+    "  - variants: [X]",
+    "  - name: Bad",
+    "    variants: Nope",
+    "  - name: Ok",
+    "  - name: '  '",
+  ].join("\n"));
+  c = loadContent(root);
+  assert.deepEqual(c.languages, [{ name: "Ok", variants: ["A"] }]);
+  assert.deepEqual(problemFor(c, "languages.yaml").map((p) => `${p.level}: ${p.message}`), [
+    "warning: languages[0] (Ok): variants[1] is not a string; skipped",
+    "error: languages[1] needs a non-empty `name`; skipped",
+    "error: languages[2] (Bad): `variants` must be a list of strings; skipped",
+    'warning: languages[3]: duplicate language "Ok"; kept the first',
+    "error: languages[4] needs a non-empty `name`; skipped",
+  ]);
 });
 
 test("unit fields are normalized; unknown frontmatter keys are preserved", () => {
@@ -136,8 +180,9 @@ test("an empty content root loads as an empty library with problems", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dojo-empty-"));
   try {
     const c = loadContent(root);
-    assert.deepEqual([c.units, c.scenarios, c.packs, c.schema.slots], [[], [], [], []]);
+    assert.deepEqual([c.units, c.scenarios, c.packs, c.schema.slots, c.languages], [[], [], [], [], []]);
     assert.ok(c.problems.some((p) => p.file.endsWith("schema.yaml") && p.level === "error"));
+    assert.ok(c.problems.some((p) => p.file.endsWith("languages.yaml") && p.level === "warning"));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -186,6 +231,52 @@ test("savePack writes contract-ordered YAML that loads back; deletePack removes 
   assert.equal(pack.notes, "Talk about the weather.\n");
   assert.equal(deletePack("2026-10-20-plaza-chat", root), true);
   assert.equal(deletePack("2026-10-20-plaza-chat", root), false);
+});
+
+test("saveProfile merges in place: other keys keep their order, comments and block style; blank removes a key", () => {
+  const root = copyFixture();
+  const abs = path.join(root, "profile.yaml");
+  fs.writeFileSync(abs, [
+    "# who is practising",
+    "learner_name: Sam # not Samantha",
+    "native_language: English",
+    "target_language: Spanish",
+    "target_variant: Mexican Spanish",
+    "level: A2",
+    "goals: >",
+    "  Order food and chat",
+    "  with vendors.",
+    "notes: Likes direct corrections.",
+    "",
+  ].join("\n"));
+  assert.equal(saveProfile({ target_language: "Japanese", target_variant: "", level: " B1 " }, root), abs);
+  const text = fs.readFileSync(abs, "utf8");
+  assert.deepEqual(Object.keys(YAML.parse(text)), ["learner_name", "native_language", "target_language", "level", "goals", "notes"]);
+  assert.ok(text.startsWith("# who is practising\nlearner_name: Sam # not Samantha\n"), text);
+  // yaml keeps the block style and the value but re-flows a folded scalar's
+  // line breaks to its line width; that is the "as best yaml allows" caveat.
+  assert.match(text, /\ngoals: >\n  Order food/, "the folded block style is kept");
+  assert.equal(YAML.parse(text).goals, "Order food and chat with vendors.\n");
+  const profile = loadContent(root).profile;
+  assert.equal(profile.target_language, "Japanese");
+  assert.equal(profile.level, "B1", "values are trimmed");
+  assert.ok(!("target_variant" in profile), "a blank value removes the key rather than writing an empty string");
+  // a key the profile never had is appended
+  saveProfile({ target_variant: "Kansai dialect" }, root);
+  assert.ok(fs.readFileSync(abs, "utf8").endsWith("notes: Likes direct corrections.\ntarget_variant: Kansai dialect\n"));
+});
+
+test("saveProfile creates a missing profile.yaml and refuses to overwrite a broken one", () => {
+  const root = copyFixture();
+  const abs = path.join(root, "profile.yaml");
+  fs.rmSync(abs);
+  saveProfile({ level: "A1" }, root);
+  assert.equal(fs.readFileSync(abs, "utf8"), "level: A1\n");
+  for (const broken of ["a: [unclosed\n", "just a scalar\n", "- a list\n"]) {
+    fs.writeFileSync(abs, broken);
+    assert.throws(() => saveProfile({ level: "A1" }, root), /not valid YAML|must be a YAML mapping/, JSON.stringify(broken));
+    assert.equal(fs.readFileSync(abs, "utf8"), broken, "the broken file is left for a person to fix");
+  }
 });
 
 test("ids that could escape their directory are refused before any write", () => {

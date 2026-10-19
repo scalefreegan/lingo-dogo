@@ -5,7 +5,8 @@
 
 import type {
   AssembleResult, ChatCommit, ChatDone, ChatError, ChatHeartbeat, ChatHistoryReply, ChatReply, ChatRequest, ChatStart,
-  ContentReply, ExportRequest, ExportResult, PackInput, PackReply, PacksReply, SettingsReply, SettingsRequest,
+  ContentReply, ExportRequest, ExportResult, PackInput, PackReply, PacksReply, ProfileReply, ProfileRequest,
+  SettingsReply, SettingsRequest,
 } from "./types";
 
 /** A non-2xx reply; `message` is the server's `{error}` sentence. */
@@ -41,6 +42,11 @@ function json(body: unknown, method = "POST"): RequestInit {
 /** GET /api/content — re-read from disk on every call. */
 export function getContent(): Promise<ContentReply> {
   return req<ContentReply>("/api/content");
+}
+
+/** PUT /api/profile — merges the picker keys into content/profile.yaml. */
+export function saveProfile(patch: ProfileRequest): Promise<ProfileReply> {
+  return req<ProfileReply>("/api/profile", json(patch, "PUT"));
 }
 
 export function listPacks(): Promise<PacksReply> {

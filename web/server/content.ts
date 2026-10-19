@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { assemble } from "../../scripts/assemble.mjs";
-import { ID_RE, deletePack, loadContent, savePack, writeExport } from "../../scripts/content.mjs";
+import { ID_RE, deletePack, loadContent, savePack, saveProfile, writeExport } from "../../scripts/content.mjs";
 import type {
   AssembleRequest, AssembleResult, ContentReply, ExportRequest, ExportResult, Pack, PackReply, PacksReply,
+  PickerKey, ProfileReply, ProfileRequest,
 } from "../shared/wire.ts";
 import { HttpError, methodNotAllowed, readJsonBody, sendJson, subPath } from "./sse.ts";
 
@@ -11,7 +12,8 @@ import { HttpError, methodNotAllowed, readJsonBody, sendJson, subPath } from "./
 // and a cache would be one more thing to invalidate. The loader and assembler
 // are the same modules the export CLI and the tests run.
 //
-//   GET    /api/content        library (schema, frame, profile, units, scenarios, problems)
+//   GET    /api/content        library (schema, frame, profile, languages, units, scenarios, problems)
+//   PUT    /api/profile        merge the picker keys into content/profile.yaml → {profile}
 //   GET    /api/packs          saved packs
 //   GET    /api/packs/:id      one pack
 //   PUT    /api/packs/:id      write content/packs/<id>.yaml from a JSON pack
@@ -39,10 +41,36 @@ export function handleContent(req: IncomingMessage, res: ServerResponse): void {
   if (subPath(req)) return sendJson(res, 404, { error: "no such route" });
   const c = loadContent();
   const reply: ContentReply = {
-    root: c.root, schema: c.schema, frame: c.frame, profile: c.profile,
+    root: c.root, schema: c.schema, frame: c.frame, profile: c.profile, languages: c.languages,
     units: c.units, scenarios: c.scenarios, problems: c.problems,
   };
   sendJson(res, 200, reply);
+}
+
+/** The keys PUT /api/profile may write: what the pickers show. The rest of
+ *  profile.yaml (name, goals, notes) is prose a person edits in the file or
+ *  asks the agent for, and this route must not be a way to clobber it. */
+const PICKER_KEYS: ReadonlySet<string> = new Set<PickerKey>(["native_language", "target_language", "target_variant", "level"]);
+/** A language or variant name is a few words; this is a sanity bound, not a format. */
+const MAX_PROFILE_VALUE = 80;
+
+export async function handleProfile(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (subPath(req)) return sendJson(res, 404, { error: "no such route" });
+  if (req.method !== "PUT") return methodNotAllowed(res, "PUT");
+  const body = await readJsonBody<unknown>(req);
+  if (!isObject(body)) throw new HttpError(400, "body must be an object of profile keys");
+  const patch: ProfileRequest = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (!PICKER_KEYS.has(key)) throw new HttpError(400, `unknown profile key "${key}" (this route takes ${[...PICKER_KEYS].join(", ")})`);
+    if (typeof value !== "string") throw new HttpError(400, `${key} must be a string`);
+    if (value.length > MAX_PROFILE_VALUE) throw new HttpError(400, `${key} is too long (at most ${MAX_PROFILE_VALUE} characters)`);
+    patch[key as PickerKey] = value;
+  }
+  if (Object.keys(patch).length === 0) throw new HttpError(400, "nothing to save: the body names no profile key");
+  saveProfile(patch);
+  // Read back through the loader, like packs: the reply is what the file now
+  // says, not an echo of the request.
+  sendJson(res, 200, { profile: loadContent().profile } satisfies ProfileReply);
 }
 
 export async function handlePacks(req: IncomingMessage, res: ServerResponse): Promise<void> {

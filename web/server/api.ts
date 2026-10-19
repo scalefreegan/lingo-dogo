@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
 import { handleChat, handleSettings } from "./chat.ts";
-import { handleAssemble, handleContent, handleExport, handlePacks } from "./content.ts";
+import { handleAssemble, handleContent, handleExport, handlePacks, handleProfile } from "./content.ts";
 import { HttpError, sendJson } from "./sse.ts";
 
 // The whole "backend": dev-server-only middleware on the Vite server.
@@ -63,6 +63,7 @@ export function apiPlugins(): Plugin {
       // No database and no cache: every route re-reads content/ from disk,
       // so an edit by the agent or an editor is live on the next request.
       server.middlewares.use("/api/content", wrap(handleContent));
+      server.middlewares.use("/api/profile", wrap(handleProfile));
       server.middlewares.use("/api/packs", wrap(handlePacks));
       server.middlewares.use("/api/assemble", wrap(handleAssemble));
       server.middlewares.use("/api/export", wrap(handleExport));

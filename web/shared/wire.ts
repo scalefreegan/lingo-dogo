@@ -83,6 +83,13 @@ export interface Profile {
   [key: string]: unknown;
 }
 
+/** One entry of content/languages.yaml: what the native/target pickers
+ *  offer. `variants` is [] when the language has none. */
+export interface Language {
+  name: string;
+  variants: string[];
+}
+
 /** A file the loader could not use (`error`: left out of the library) or
  *  used with a caveat (`warning`). Never thrown, always listed. */
 export interface Problem {
@@ -99,16 +106,33 @@ export interface ContentReply {
   schema: Schema;
   frame: string;
   profile: Profile;
+  /** [] when content/languages.yaml is missing; the UI then shows free text. */
+  languages: Language[];
   units: Unit[];
   scenarios: Scenario[];
   problems: Problem[];
+}
+
+/* -------------------------------- profile -------------------------------- */
+
+/** The profile keys the UI's pickers can write ("Save as my defaults"). */
+export type PickerKey = "native_language" | "target_language" | "target_variant" | "level";
+
+/** PUT /api/profile — any subset of the picker keys, strings of at most 80
+ *  characters; a blank value removes the key from profile.yaml. Everything
+ *  else in the profile (name, goals, notes) is edited in the file. */
+export type ProfileRequest = Partial<Record<PickerKey, string>>;
+
+/** The profile as it reads back from disk after the write. */
+export interface ProfileReply {
+  profile: Profile;
 }
 
 /* --------------------------------- packs --------------------------------- */
 
 /** The profile keys a pack may override from the UI. Overrides on disk may
  *  carry any profile key. */
-export type Overrides = Partial<Record<"target_language" | "target_variant" | "level", string>> & Record<string, unknown>;
+export type Overrides = Partial<Record<PickerKey, string>> & Record<string, unknown>;
 
 /** What a pack file holds (content/packs/<id>.yaml), and the body of PUT
  *  /api/packs/:id and POST /api/assemble. */
