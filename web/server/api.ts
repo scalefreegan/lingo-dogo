@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
+import { handleChat, handleSettings } from "./chat.ts";
 import { handleAssemble, handleContent, handleExport, handlePacks } from "./content.ts";
 import { HttpError, sendJson } from "./sse.ts";
 
@@ -65,8 +66,10 @@ export function apiPlugins(): Plugin {
       server.middlewares.use("/api/packs", wrap(handlePacks));
       server.middlewares.use("/api/assemble", wrap(handleAssemble));
       server.middlewares.use("/api/export", wrap(handleExport));
-      // Mount point for the embedded agent: server/chat.ts (SSE, auto-commit
-      // of content/ after each turn) goes here, through wrap() like the rest.
+      // The embedded agent (SSE, auto-commit of content/ after each turn) and
+      // its model setting.
+      server.middlewares.use("/api/chat", wrap(handleChat));
+      server.middlewares.use("/api/settings", wrap(handleSettings));
       // Anything else under /api is a typo, not the SPA shell: answer in the
       // envelope the client already parses instead of index.html.
       server.middlewares.use("/api", wrap((_req, res) => sendJson(res, 404, { error: "no such route" })));

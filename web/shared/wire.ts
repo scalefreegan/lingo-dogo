@@ -181,3 +181,82 @@ export interface ExportResult {
 export interface ErrorReply {
   error: string;
 }
+
+/* ---------------------------------- chat --------------------------------- */
+
+/** One line of data/chat.jsonl. `commit` lines record an auto-commit the
+ *  server made after an agent turn: text is "<short hash>: <summary>". */
+export type ChatRole = "user" | "assistant" | "commit";
+
+export interface ChatMessage {
+  role: ChatRole;
+  text: string;
+  /** ISO timestamp. */
+  ts: string;
+}
+
+/** GET /api/chat/history */
+export interface ChatHistoryReply {
+  messages: ChatMessage[];
+}
+
+/** POST /api/chat — answered as SSE (see the Chat* event shapes). 409 when a
+ *  run is already in progress: one agent at a time, by design. */
+export interface ChatRequest {
+  message: string;
+}
+
+/** SSE `start`: the run began, with the model it went out on. */
+export interface ChatStart {
+  model: string;
+}
+
+/** SSE `heartbeat`, every few seconds while the agent works. */
+export interface ChatHeartbeat {
+  elapsed: number;
+}
+
+/** SSE `message`: the agent's final reply (the CLI buffers the whole turn, so
+ *  there is nothing to stream before it). `denied` counts tool calls the
+ *  sandbox refused — a Write outside content/, say. */
+export interface ChatReply extends ChatMessage {
+  role: "assistant";
+  costUsd: number | null;
+  numTurns: number | null;
+  denied: number;
+}
+
+/** SSE `commit`, after the reply: what the server did with content/. */
+export type ChatCommit =
+  | { hash: string; summary: string }
+  | { skipped: true }
+  | { error: string };
+
+/** SSE `error` (the run failed; `error` is a sentence with a hint when the
+ *  cause is known: sign-in, usage limit) and `done` (always last). */
+export interface ChatError {
+  error: string;
+}
+export interface ChatDone {
+  ok: boolean;
+}
+
+/* -------------------------------- settings ------------------------------- */
+
+export interface AgentModel {
+  /** What the CLI's --model accepts, e.g. "claude-sonnet-5-5". */
+  id: string;
+  label: string;
+  note: string;
+}
+
+/** GET/PUT /api/settings — `models` is the list the UI may pick from; PUT
+ *  takes {model} and answers with the same shape. */
+export interface SettingsReply {
+  model: string;
+  models: AgentModel[];
+}
+
+export interface SettingsRequest {
+  model: string;
+}

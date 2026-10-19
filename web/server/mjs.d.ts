@@ -22,6 +22,8 @@
 declare module "*/scripts/content.mjs" {
   /** Kebab-case id: the guard on every pack/export id from a request. */
   export const ID_RE: RegExp;
+  /** Absolute path of the repo (from import.meta.url, never process.cwd()). */
+  export const REPO_ROOT: string;
   export function contentRoot(): string;
   export function exportsDir(): string;
   /** Never throws; bad files land in `problems`. */
@@ -44,5 +46,35 @@ declare module "*/scripts/assemble.mjs" {
   ): import("../shared/wire.ts").AssembleResult;
 }
 
-// Everything else (claude.mjs, when the chat lands): untyped.
+declare module "*/scripts/claude.mjs" {
+  export const AGENT_MODELS: import("../shared/wire.ts").AgentModel[];
+  export const DEFAULT_MODEL: string;
+  export function isAgentModel(id: unknown): id is string;
+  /** A sentence for a known headless-CLI failure (sign-in, usage limit,
+   *  overload), or null. */
+  export function failureHint(text: string): string | null;
+  /** The agent's final reply plus the envelope's accounting. */
+  export interface ClaudeResult {
+    text: string;
+    costUsd: number | null;
+    numTurns: number | null;
+    durationMs: number | null;
+    usage: Record<string, unknown> | null;
+    permissionDenials: unknown[];
+    raw: Record<string, unknown>;
+  }
+  /** Spawns `claude -p` in the sandbox buildArgs() pins (see the test).
+   *  `kill()` and `signal` both SIGKILL the process group. */
+  export function startClaude(opts: {
+    prompt: string;
+    systemPrompt?: string;
+    model?: string;
+    cwd?: string;
+    signal?: AbortSignal;
+    maxTurns?: number;
+    timeoutSec?: number;
+  }): { result: Promise<ClaudeResult>; kill: () => void };
+}
+
+// Everything else: untyped.
 declare module "*.mjs";

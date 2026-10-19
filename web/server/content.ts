@@ -4,7 +4,7 @@ import { ID_RE, deletePack, loadContent, savePack, writeExport } from "../../scr
 import type {
   AssembleRequest, AssembleResult, ContentReply, ExportRequest, ExportResult, Pack, PackReply, PacksReply,
 } from "../shared/wire.ts";
-import { HttpError, readJsonBody, sendJson } from "./sse.ts";
+import { HttpError, methodNotAllowed, readJsonBody, sendJson, subPath } from "./sse.ts";
 
 // The content routes. All of them call loadContent() per request: content/ is
 // small, the agent and the user's editor change it under the running server,
@@ -22,24 +22,6 @@ import { HttpError, readJsonBody, sendJson } from "./sse.ts";
 // Ids come from the request, so each is checked against ID_RE here (a 400 the
 // user can read) and again inside savePack/deletePack/writeExport, which also
 // prove the resolved path stays inside content/packs or exports/.
-
-function methodNotAllowed(res: ServerResponse, allow: string): void {
-  res.writeHead(405, { Allow: allow, "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: `method not allowed (use ${allow})` }));
-}
-
-/** The path segment after the mount point, e.g. "/2026-10-19-x" → "2026-10-19-x".
- *  connect strips the mount prefix from req.url before the handler sees it. */
-function subPath(req: IncomingMessage): string {
-  const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
-  let seg = pathname.replace(/^\/+|\/+$/g, "");
-  try {
-    seg = decodeURIComponent(seg);
-  } catch {
-    throw new HttpError(400, "malformed id");
-  }
-  return seg;
-}
 
 function checkId(id: unknown): string {
   if (typeof id !== "string" || !ID_RE.test(id)) {

@@ -1,13 +1,12 @@
 import { useState } from "react";
+import ChatPanel from "./ChatPanel";
 
-/* ==== MOUNT POINT: embedded agent chat ====
- * The agent-chat work (server/chat.ts + a ChatPanel modelled on wine-guide's)
- * replaces the placeholder body below; the right-edge toggle and the drawer
- * frame can stay. After an agent turn that edited content/, the library and
- * the preview must reload: add an `onContentChanged` prop here and pass App's
- * `reloadContent` (the same function the header's "Reload content" button
- * calls). */
-export default function AgentDrawer() {
+/* The embedded agent chat, docked to the right edge. The drawer is hidden
+ * rather than unmounted when closed, so a run in progress (and the transcript
+ * the panel holds) survives toggling it. `onContentChanged` is App's
+ * reloadContent — the same function the header's "Reload content" button
+ * calls — so a unit the agent just added appears in its slot at once. */
+export default function AgentDrawer({ onContentChanged }: { onContentChanged: () => Promise<void> | void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -20,25 +19,18 @@ export default function AgentDrawer() {
       >
         {open ? "Close agent" : "Agent"}
       </button>
-      {open && (
-        <aside
-          id="agent-drawer"
-          aria-label="Agent"
-          className="fixed top-0 right-0 z-20 flex h-full w-full max-w-sm flex-col border-l border-line bg-panel shadow-xl"
-        >
-          <header className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4 pr-10">
-            <h2 className="font-medium text-fg">Agent</h2>
-          </header>
-          {/* ---- placeholder: replace with the chat panel ---- */}
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center" data-agent-placeholder>
-            <p className="font-medium text-fg">Agent coming soon</p>
-            <p className="text-sm text-fg-3">
-              Ask it to add or revise units and scenarios; it will edit files under content/ and each change becomes a git commit.
-            </p>
-          </div>
-          {/* ---- end placeholder ---- */}
-        </aside>
-      )}
+      <aside
+        id="agent-drawer"
+        aria-label="Agent"
+        hidden={!open}
+        className="fixed top-0 right-0 z-20 flex h-full w-full max-w-md flex-col border-l border-line bg-panel shadow-xl"
+      >
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4 pr-10">
+          <h2 className="font-medium text-fg">Agent</h2>
+          <span className="text-xs text-fg-3">edits content/ · every change is a commit</span>
+        </header>
+        <ChatPanel onContentChanged={onContentChanged} />
+      </aside>
     </>
   );
 }

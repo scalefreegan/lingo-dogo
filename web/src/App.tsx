@@ -180,7 +180,7 @@ export default function App() {
         !loadError && <p className="p-6 text-sm text-fg-3">Loading content…</p>
       )}
 
-      <AgentDrawer />
+      <AgentDrawer onContentChanged={reloadContent} />
     </div>
   );
 }

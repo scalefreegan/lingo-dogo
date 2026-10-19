@@ -52,3 +52,21 @@ export function sendJson(res: ServerResponse, status: number, data: unknown): vo
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
 }
+
+export function methodNotAllowed(res: ServerResponse, allow: string): void {
+  res.writeHead(405, { Allow: allow, "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: `method not allowed (use ${allow})` }));
+}
+
+/** The path segment after the mount point, e.g. "/2026-10-19-x" → "2026-10-19-x".
+ *  connect strips the mount prefix from req.url before the handler sees it. */
+export function subPath(req: IncomingMessage): string {
+  const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+  let seg = pathname.replace(/^\/+|\/+$/g, "");
+  try {
+    seg = decodeURIComponent(seg);
+  } catch {
+    throw new HttpError(400, "malformed id");
+  }
+  return seg;
+}
