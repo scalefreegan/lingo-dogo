@@ -81,6 +81,8 @@ beats:                        # optional ordered scene sections the dojo master 
   - Walking past the horno and tahona; how the agave is cooked and crushed
   - Tasting three mezcales; describing flavor
   - Asking about buying a bottle; prices; saying goodbye
+twists:                       # optional; variation units pick one at random
+  - The tobalá is sold out; the maestro offers a madrecuixe instead
 vocab:                        # optional; warm-up units draw from this
   - { term: "palenque", gloss: "mezcal distillery" }
   - { term: "¿Me permite probar?", gloss: "May I try it?" }
@@ -168,7 +170,8 @@ Input: loaded content + one pack. Output: `{ markdown, warnings[], stats }`.
    - `# Lingo Dojo session: <scenario title>`
    - `frame.md` body (placeholders substituted)
    - `## Learner` — a short block from the effective profile
-   - `## Scenario` — title, summary, roles, beats, vocab table (if present), body
+   - `## Scenario` — title, summary, roles, beats, vocab table, twists list (each
+     if present; twists are labelled as usable only when a Variation unit asks), body
    - One `## <slot title>` per slot that has units, each unit rendered as
      `### <unit title>` + body (placeholders substituted). Slots with no units are
      omitted unless required.

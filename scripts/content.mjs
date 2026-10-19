@@ -345,6 +345,7 @@ function loadScenario(abs, report) {
     roles,
     beats: strList(fm.beats),
     vocab,
+    twists: strList(fm.twists),
     body,
     path: displayPath(abs),
   };

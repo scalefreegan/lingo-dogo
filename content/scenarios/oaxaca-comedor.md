@@ -26,6 +26,12 @@ vocab:
   - { term: "¿se puede pagar con tarjeta?", gloss: "can I pay by card?" }
   - { term: "de postre", gloss: "for dessert" }
   - { term: "buen provecho", gloss: "enjoy your meal" }
+twists:
+  - "The mole negro ran out; Señora Lupe offers coloradito instead"
+  - "Her daughter says the horchata is finished but there is agua de jamaica"
+  - "A power cut leaves the kitchen on gas only, so the soup is delayed"
+  - "A regular at the next table recommends a dish and starts chatting with the learner"
+  - "The card reader is not working and Señora Lupe only takes cash"
 ---
 {{learner_name}} has walked into a small comedor a few blocks from the
 Zócalo — no sign to speak of, four tables, run out of Señora Lupe's front

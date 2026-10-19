@@ -26,6 +26,12 @@ vocab:
   - { term: "copita", gloss: "small clay cup mezcal is traditionally served in" }
   - { term: "¿a cuánto sale la botella?", gloss: "how much does the bottle go for?" }
   - { term: "salud", gloss: "cheers" }
+twists:
+  - "The tobalá is sold out; Don Refugio offers a madrecuixe instead"
+  - "A sudden rainstorm moves the tasting indoors"
+  - "Don Refugio's granddaughter joins and asks the learner about their country"
+  - "The card reader is down; cash only, and the learner is short"
+  - "Don Refugio insists the learner try the pechuga first, out of the usual order"
 ---
 {{learner_name}} has come out from the city of Oaxaca on a half-day trip to
 Santiago Matatlán, "the world capital of mezcal," to visit a small family

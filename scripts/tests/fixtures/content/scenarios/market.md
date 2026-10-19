@@ -11,6 +11,9 @@ beats:
   - Greeting at the stall
   - Asking prices
   - Paying and saying goodbye
+twists:
+  - The stall is out of quesillo
+  - A second customer cuts in line
 vocab:
   - { term: "¿Cuánto cuesta?", gloss: "How much is it?" }
   - { term: "kilo | medio", gloss: "a kilo | a half" }

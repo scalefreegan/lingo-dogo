@@ -66,6 +66,8 @@ export interface Scenario {
   roles: Record<string, string>;
   beats: string[];
   vocab: VocabItem[];
+  /** Optional complications a variation unit may pick from. */
+  twists: string[];
   body: string;
   path: string;
 }

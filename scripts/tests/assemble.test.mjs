@@ -161,7 +161,12 @@ test("scenario block: roles, beats, vocab table with escaped pipes, body", () =>
   assert.ok(markdown.includes("- **You (dojo master):** Doña Rosa, the fruit vendor, quick and friendly\n- **Learner:** a visitor buying breakfast"));
   assert.ok(markdown.includes("1. Greeting at the stall\n2. Asking prices\n3. Paying and saying goodbye"));
   assert.ok(markdown.includes("| Term | Gloss |\n| --- | --- |\n| ¿Cuánto cuesta? | How much is it? |\n| kilo \\| medio | a kilo \\| a half |"));
-  assert.ok(markdown.includes("The market is loud and crowded."));
+  assert.ok(markdown.includes("**Possible twists** (use only if a Variation unit below asks for one)\n\n- The stall is out of quesillo\n- A second customer cuts in line\n\nThe market is loud and crowded."));
+});
+
+test("a scenario without twists renders no twists block", () => {
+  const { markdown } = run({ scenario: "", quick_scenario: "At a bus stop." });
+  assert.ok(!markdown.includes("Possible twists"));
 });
 
 test("unit bodies are verbatim apart from placeholders and trimmed trailing whitespace", () => {

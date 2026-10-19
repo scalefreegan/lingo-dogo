@@ -159,9 +159,9 @@ function resolveScenario(content, pack, warn) {
     }
     warn(`Unknown scenario "${pack.scenario}" (no content/scenarios/${pack.scenario}.md).`);
   }
-  if (quick) return { id: null, title: QUICK_SCENARIO_TITLE, summary: "", roles: {}, beats: [], vocab: [], body: quick };
+  if (quick) return { id: null, title: QUICK_SCENARIO_TITLE, summary: "", roles: {}, beats: [], vocab: [], twists: [], body: quick };
   warn("No scenario selected.");
-  return { id: null, title: NO_SCENARIO_TITLE, summary: "", roles: {}, beats: [], vocab: [], body: "", missing: true };
+  return { id: null, title: NO_SCENARIO_TITLE, summary: "", roles: {}, beats: [], vocab: [], twists: [], body: "", missing: true };
 }
 
 /**
@@ -228,6 +228,12 @@ function renderScenario(s) {
   if (s.vocab?.length) {
     parts.push("**Vocabulary**");
     parts.push(["| Term | Gloss |", "| --- | --- |", ...s.vocab.map((v) => `| ${cell(v.term)} | ${cell(v.gloss)} |`)].join("\n"));
+  }
+  // Twists are raw material for the Variation slot, not a script: the
+  // dojo master must only reach for them when a variation unit says so.
+  if (s.twists?.length) {
+    parts.push("**Possible twists** (use only if a Variation unit below asks for one)");
+    parts.push(s.twists.map((t) => `- ${t}`).join("\n"));
   }
   const body = (s.body ?? "").trimEnd();
   if (body) parts.push(body);

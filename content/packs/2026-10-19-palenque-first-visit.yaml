@@ -4,6 +4,8 @@ scenario: oaxaca-palenque
 quick_scenario: ""
 units:
   - intro-native
+  - narrator-native-rotating
+  - character-as-written
   - warmup-phrases
   - style-natural
   - whole-sentences

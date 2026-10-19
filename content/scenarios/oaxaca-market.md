@@ -26,6 +26,12 @@ vocab:
   - { term: "picoso", gloss: "spicy" }
   - { term: "al gusto", gloss: "to taste, as you like" }
   - { term: "la bolsa", gloss: "the bag" }
+twists:
+  - "Doña Carmen is out of chapulines until the afternoon and offers a different snack"
+  - "Her nephew interrupts to ask if the learner wants a bag, and the price changes"
+  - "Another customer cuts in and the learner has to hold their place"
+  - "The learner's bill is in large notes and Doña Carmen has no change"
+  - "Doña Carmen says the quesillo has just been made and insists on a taste first"
 ---
 {{learner_name}} is doing their own shopping for the first time in one of
 Oaxaca city's big covered markets, where Doña Carmen has run the same stall
