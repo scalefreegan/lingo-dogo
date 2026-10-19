@@ -44,8 +44,9 @@ open -a Lingo Dojo
   honoured, which is why this surfaced only when one was reset. The shim
   restores a promptable identity. If you are reading this after another macOS
   release, re-measure before trusting either direction.
-- **`icon.svg`** — icon source (a dog's head in profile wearing a martial-arts
-  headband, with a small speech bubble; accent `#f2b949` on indigo `#1b1f3a`). `render-icon.sh`
+- **`icon.svg`** — icon source (a gold torii gate against a red sun with a white
+  speech bubble between the pillars; gold `#f2b949`, red `#b8322b`, cream
+  `#f5f1e8` on indigo `#1b1f3a`). `render-icon.sh`
   rasterizes it to `icon-1024.png` with `sips` (which reads SVG and keeps the
   transparent corners — no Pillow or browser needed); `build-app.sh` derives
   the `.icns` ladder from the PNG. No SVG filters: `sips` renders through
