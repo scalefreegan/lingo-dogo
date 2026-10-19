@@ -15,7 +15,7 @@ import { serveApi } from "./connect-stack.mjs";
 import { copyFixture } from "./helpers.mjs";
 
 const root = copyFixture();
-const exportsDir = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dogo-exports-"));
+const exportsDir = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dojo-exports-"));
 process.env.LINGO_CONTENT_DIR = root;
 process.env.LINGO_EXPORTS_DIR = exportsDir;
 
@@ -115,7 +115,7 @@ test("pack ids are validated: traversal, case and junk are 400 and nothing is wr
 test("POST /api/assemble returns markdown, warnings and stats", async () => {
   const r = await call("POST", "/api/assemble", { pack: { ...pack, units: ["warmup-vocab"] } });
   assert.equal(r.status, 200);
-  assert.match(r.body.markdown, /^# Lingo Dogo session: Evening in the plaza\n/);
+  assert.match(r.body.markdown, /^# Lingo Dojo session: Evening in the plaza\n/);
   assert.deepEqual(r.body.warnings, ['Required slot "Introduction" has no unit selected.']);
   assert.ok(r.body.stats.words > 0);
   assert.equal((await call("POST", "/api/assemble", {})).status, 400);

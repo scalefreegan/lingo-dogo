@@ -43,7 +43,7 @@ export function wrap(fn: Handler): Handler {
       .catch((e) => {
         // A bad or oversized body is the client's fault, not a crash.
         const status = e instanceof HttpError ? e.status : 500;
-        if (status === 500) console.error(`[lingo-dogo] ${req.method} ${req.url}:`, e);
+        if (status === 500) console.error(`[lingo-dojo] ${req.method} ${req.url}:`, e);
         // Headers already out (an SSE stream mid-flight): there is no
         // envelope left to send, and sendJson's writeHead would throw INSIDE
         // this catch — an unhandled rejection, which under Node 26 exits the
@@ -57,7 +57,7 @@ export function wrap(fn: Handler): Handler {
 
 export function apiPlugins(): Plugin {
   return {
-    name: "lingo-dogo-api",
+    name: "lingo-dojo-api",
     apply: "serve",
     configureServer(server) {
       // No database and no cache: every route re-reads content/ from disk,

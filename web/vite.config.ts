@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), apiPlugins()],
   // Fixed port so the Mac app (macos/) has a deterministic health-check and
   // dashboard URL; strict so a second instance fails loudly instead of
-  // silently serving a twin on the next port. 38400 = Lingo Dogo; Atlas is
+  // silently serving a twin on the next port. 38400 = Lingo Dojo; Atlas is
   // 38300, Wine Guide 38200 and Basecamp 38100, so all four can run at once.
   // Polling watcher: macOS FSEvents delivery for this directory is broken on
   // this machine (fsevents.watch sees nothing while fs.watch does), which

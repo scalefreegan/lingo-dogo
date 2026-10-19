@@ -133,7 +133,7 @@ test("missing files and a bad schema are problems, not crashes", () => {
 });
 
 test("an empty content root loads as an empty library with problems", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dogo-empty-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dojo-empty-"));
   try {
     const c = loadContent(root);
     assert.deepEqual([c.units, c.scenarios, c.packs, c.schema.slots], [[], [], [], []]);

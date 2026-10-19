@@ -1,29 +1,29 @@
-# Lingo Dogo.app
+# Lingo Dojo.app
 
-A stay-open Dock app wrapping the lingo-dogo dev server — the pattern
+A stay-open Dock app wrapping the lingo-dojo dev server — the pattern
 worked out for trail-train's Basecamp.app and hardened in wine-guide's Wine
-Guide.app (PR #7), copied here. Launch by icon, Lingo Dogo opens in the browser at
+Guide.app (PR #7), copied here. Launch by icon, Lingo Dojo opens in the browser at
 the fixed port, quitting the Dock icon stops the server (if the app started
 it).
 
 ```sh
-./macos/build-app.sh     # builds and installs /Applications/Lingo Dogo.app
-open -a Lingo Dogo
+./macos/build-app.sh     # builds and installs /Applications/Lingo Dojo.app
+open -a Lingo Dojo
 ```
 
 ## Anatomy
 
-- **`Lingo Dogo.applescript`** — the Dock face. Stay-open applet: `run`/`reopen`
+- **`Lingo Dojo.applescript`** — the Dock face. Stay-open applet: `run`/`reopen`
   start the server (if down) and open http://localhost:38400; `idle` quits
   the Dock icon after **three consecutive** failed health checks (one miss is
   normal — editing any server file restarts Vite, unbinding the port for a
   moment); `quit` pkills vite **only if this app started it** — a server it
   merely adopted (your manual `npm run dev`, a worktree's) is left alone.
-  The health check fetches `/` and requires Lingo Dogo's own `<title>`, so a
+  The health check fetches `/` and requires Lingo Dojo's own `<title>`, so a
   stranger on the port is never mistaken for the app.
 - **`server-shim.c`** — compiled by `build-app.sh` into
-  `Contents/MacOS/LingoDogoServer`, the executable of the nested, faceless
-  **Lingo Dogo Server.app** (`Contents/Helpers/`). All it does is `exec` the
+  `Contents/MacOS/LingoDojoServer`, the executable of the nested, faceless
+  **Lingo Dojo Server.app** (`Contents/Helpers/`). All it does is `exec` the
   runner script from `Contents/Resources/`. **A working `clang` is a build
   prerequisite.**
 - **`server-runner.sh`** — the runner itself, living in
@@ -52,10 +52,10 @@ open -a Lingo Dogo
   CoreGraphics' basic SVG support, so everything is flat fills.
 - The app itself is a build product, not committed; `build-app.sh` is the
   source of truth. Rebuild after changing any of its four inputs —
-  `Lingo Dogo.applescript`, `server-shim.c`, `server-runner.sh` or the icon.
+  `Lingo Dojo.applescript`, `server-shim.c`, `server-runner.sh` or the icon.
   Needs `clang` for the shim. A rebuild changes the helper's code identity,
   which invalidates its TCC grant: if the server then won't start, run
-  `tccutil reset All com.scalefreegan.lingodogo.server` and relaunch to get a
+  `tccutil reset All com.scalefreegan.lingodojo.server` and relaunch to get a
   fresh prompt.
 
 ## Repo path
@@ -68,19 +68,19 @@ works too — it falls back to its own location when the path isn't baked in.
 
 ## First launch — and after every rebuild
 
-macOS may show one Documents-access prompt attributed to "Lingo Dogo Server" —
+macOS may show one Documents-access prompt attributed to "Lingo Dojo Server" —
 approve it, or the server dies with EPERM (the runner logs the guidance).
 **Every rebuild re-signs the bundles ad hoc, which changes their code
 identity (cdhash) — the old TCC grant stops applying and macOS may deny
 WITHOUT re-prompting.** Recovery, in order:
-1. `tccutil reset SystemPolicyDocumentsFolder com.scalefreegan.lingodogo.server`
-   (and the same for `com.scalefreegan.lingodogo`), then relaunch — this clears
+1. `tccutil reset SystemPolicyDocumentsFolder com.scalefreegan.lingodojo.server`
+   (and the same for `com.scalefreegan.lingodojo`), then relaunch — this clears
    the stale record so a fresh prompt can appear.
 2. If still no prompt: System Settings → Privacy & Security → **Full Disk
    Access** → "+" → add
-   `/Applications/Lingo Dogo.app/Contents/Helpers/Lingo Dogo Server.app`, then relaunch.
+   `/Applications/Lingo Dojo.app/Contents/Helpers/Lingo Dojo Server.app`, then relaunch.
 
-Server log: `~/Library/Logs/LingoDogo.log` (the previous run is kept at
+Server log: `~/Library/Logs/LingoDojo.log` (the previous run is kept at
 `.log.old`).
 
 The app expects `npm install` to have been run once (repo root and `web/`) —
@@ -96,10 +96,10 @@ manual server is running first, the app **adopts** it — and Quit then leaves
 it running, since the app doesn't kill what it didn't start. The same applies
 to a server that outlives the 30s startup window: the launcher relinquishes
 ownership (so it can't kill a still-warming server), later clicks adopt it,
-and Quit leaves it — `pkill -f 'lingo-dogo/web.*vite'` by hand if you ever
+and Quit leaves it — `pkill -f 'lingo-dojo/web.*vite'` by hand if you ever
 need it gone.
 
 ## Caveats
 
-The bundle id is personal (`com.scalefreegan.lingodogo`) and signing is ad hoc.
+The bundle id is personal (`com.scalefreegan.lingodojo`) and signing is ad hoc.
 This is a personal launcher, not a distributable app.

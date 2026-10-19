@@ -1,11 +1,11 @@
-# Lingo Dogo
+# Lingo Dojo
 
 A composable prompt-pack builder for spoken language practice. You pick a scenario
 ("tasting mezcal at a palenque outside Santiago Matatlán"), choose the lesson units
 you want (how the session opens, warm-up drills, how hard it pushes you, which
 language the guidance comes in, how mistakes are corrected, how it closes), and get
 one markdown prompt to paste into whatever voice agent you talk to. The voice agent
-is the **dojo master**; Lingo Dogo never runs the session itself.
+is the **dojo master**; Lingo Dojo never runs the session itself.
 
 Three ideas, one app:
 
@@ -26,11 +26,11 @@ npm run dev                               # http://localhost:38400
 ```
 
 Or build the Dock app once and launch it by icon (see `macos/README.md`; the first
-launch asks for Documents access for "Lingo Dogo Server"):
+launch asks for Documents access for "Lingo Dojo Server"):
 
 ```sh
 ./macos/build-app.sh
-open -a "Lingo Dogo"
+open -a "Lingo Dojo"
 ```
 
 The embedded agent uses your Claude Code login. No API key is involved.

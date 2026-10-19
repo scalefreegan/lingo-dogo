@@ -1,8 +1,8 @@
-# Lingo Dogo — PRD
+# Lingo Dojo — PRD
 
 Personal, single-user, localhost, no auth. A **composable prompt-pack builder** for
 language-practice sessions run elsewhere as a real-time voice conversation with an
-AI "dojo master". Lingo Dogo does not do the voice session. It organizes the
+AI "dojo master". Lingo Dojo does not do the voice session. It organizes the
 instruction material, lets you pick and combine it, and hands you one markdown
 prompt to paste into whatever voice tool you use.
 
@@ -33,7 +33,7 @@ Decided 2026-10-19 in the intake interview (all answers below are final for v1):
 - **Pack** — one concrete selection: a scenario (or a free-text quick scenario),
   one or more units per slot, profile overrides, free notes. Saved as YAML.
 - **Export** — the assembled markdown prompt rendered from a pack.
-- **Dojo master** — the voice agent that receives the prompt. Lingo Dogo never
+- **Dojo master** — the voice agent that receives the prompt. Lingo Dojo never
   talks to it.
 
 ## User flow (v1)
@@ -76,7 +76,7 @@ web/                   Vite app; API is Vite serve-middleware in web/server/*.ts
   src/                 React UI
 exports/               rendered prompts (gitignored)
 data/                  runtime state: chat history, settings (gitignored)
-macos/                 Dock app (Lingo Dogo.app), copied from Atlas, port 38400
+macos/                 Dock app (Lingo Dojo.app), copied from Atlas, port 38400
 docs/                  this PRD, CONTENT.md (file format contract)
 ```
 

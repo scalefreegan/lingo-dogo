@@ -26,6 +26,6 @@ int main(void) {
   char script[PATH_MAX];
   snprintf(script, sizeof script, "%s/../Resources/server-runner.sh", dirname(dir));
   execl("/bin/zsh", "zsh", script, (char *)NULL);
-  perror("lingo dogo server shim: execl /bin/zsh");
+  perror("lingo dojo server shim: execl /bin/zsh");
   return 127;
 }

@@ -1,10 +1,10 @@
 #!/bin/zsh
-# Build "Lingo Dogo.app" from the AppleScript launcher + icon and install it to
+# Build "Lingo Dojo.app" from the AppleScript launcher + icon and install it to
 # /Applications (Launchpad and Spotlight pick it up).
 #
 #   ./macos/build-app.sh
 #
-# Rebuild any time one of the four sources changes: Lingo Dogo.applescript (the
+# Rebuild any time one of the four sources changes: Lingo Dojo.applescript (the
 # Dock face), server-shim.c (the helper's compiled executable), server-runner.sh
 # (what the shim execs) or icon-1024.png (render-icon.sh from icon.svg). Needs
 # clang for the shim. The .app itself is a build product and is not committed —
@@ -18,12 +18,12 @@ cd "$(dirname "$0")"
 # it baked in below, so a clone elsewhere just rebuilds.
 REPO="$(cd .. && pwd -P)"
 
-APP_NAME="Lingo Dogo"
+APP_NAME="Lingo Dojo"
 # /Applications so the app shows up where every other app lives (Finder's
 # sidebar favorite, Launchpad, Spotlight); admin-group writable, no sudo
 DEST="/Applications/$APP_NAME.app"
 ICON_PNG="icon-1024.png"
-BUNDLE_ID="com.scalefreegan.lingodogo"
+BUNDLE_ID="com.scalefreegan.lingodojo"
 
 [ -f "$ICON_PNG" ] || { echo "missing $ICON_PNG — run macos/render-icon.sh first"; exit 1; }
 
@@ -32,14 +32,14 @@ trap 'rm -rf "$BUILD_DIR"' EXIT
 
 # 0. bake the repo path into the two sources that need it. `|` as the sed
 # delimiter because the path has slashes; then refuse to build if a
-# placeholder somehow survived (a launcher pointing at "__LINGODOGO_REPO__" would
+# placeholder somehow survived (a launcher pointing at "__LINGODOJO_REPO__" would
 # fail only at first click, with a confusing log).
-bake() { sed "s|__LINGODOGO_REPO__|$REPO|g" "$1" > "$2"; ! grep -q __LINGODOGO_REPO__ "$2"; }
-bake "Lingo Dogo.applescript" "$BUILD_DIR/Lingo Dogo.applescript"
+bake() { sed "s|__LINGODOJO_REPO__|$REPO|g" "$1" > "$2"; ! grep -q __LINGODOJO_REPO__ "$2"; }
+bake "Lingo Dojo.applescript" "$BUILD_DIR/Lingo Dojo.applescript"
 bake server-runner.sh "$BUILD_DIR/server-runner.sh"
 
 # 1. compile the stay-open applet (-s = stay open after run handler)
-osacompile -s -o "$BUILD_DIR/$APP_NAME.app" "$BUILD_DIR/Lingo Dogo.applescript"
+osacompile -s -o "$BUILD_DIR/$APP_NAME.app" "$BUILD_DIR/Lingo Dojo.applescript"
 
 # 1b. kill osacompile's baked-in icon pipeline: modern macOS resolves the
 # icon via CFBundleIconName -> Assets.car (which ships the generic scroll
@@ -70,7 +70,7 @@ PLIST="$BUILD_DIR/$APP_NAME.app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $BUNDLE_ID" "$PLIST" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
 
-# 3b. helper app: "Lingo Dogo Server.app" — a faceless bundle that keeps the dev
+# 3b. helper app: "Lingo Dojo Server.app" — a faceless bundle that keeps the dev
 # server as its child. Its executable is a COMPILED shim (server-shim.c) that
 # execs server-runner.sh from Resources. History of this shape, because it
 # has now inverted twice: pre-26.6.2, the script-as-executable bundle was the
@@ -79,10 +79,10 @@ PLIST="$BUILD_DIR/$APP_NAME.app/Contents/Info.plist"
 # binary tccd will neither prompt for nor match a grant to), so the helper
 # was denied silently and even a Full Disk Access row didn't take. A real
 # Mach-O gives tccd a promptable identity again (measured 2026-08-29).
-HELPER="Lingo Dogo Server"
+HELPER="Lingo Dojo Server"
 HELPER_APP="$BUILD_DIR/$APP_NAME.app/Contents/Helpers/$HELPER.app"
 mkdir -p "$HELPER_APP/Contents/MacOS" "$HELPER_APP/Contents/Resources"
-clang -O2 -o "$HELPER_APP/Contents/MacOS/LingoDogoServer" server-shim.c
+clang -O2 -o "$HELPER_APP/Contents/MacOS/LingoDojoServer" server-shim.c
 cp "$BUILD_DIR/server-runner.sh" "$HELPER_APP/Contents/Resources/server-runner.sh"
 # +x is a convenience for running it by hand while debugging; it is NOT the
 # bundle's entry point any more, and the shim names the interpreter itself
@@ -96,7 +96,7 @@ cat > "$HELPER_APP/Contents/Info.plist" <<PLIST_EOF
   <key>CFBundleName</key><string>$HELPER</string>
   <key>CFBundleDisplayName</key><string>$HELPER</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID.server</string>
-  <key>CFBundleExecutable</key><string>LingoDogoServer</string>
+  <key>CFBundleExecutable</key><string>LingoDojoServer</string>
   <key>CFBundleIconFile</key><string>helper</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSUIElement</key><true/>

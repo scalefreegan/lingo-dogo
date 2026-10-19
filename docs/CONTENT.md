@@ -143,7 +143,7 @@ Input: loaded content + one pack. Output: `{ markdown, warnings[], stats }`.
    slot, in pack order. Apply cardinality: `one` with >1 is a warning (keep the
    first); `required` with 0 is a warning and a placeholder line.
 4. Render, in this order:
-   - `# Lingo Dogo session: <scenario title>`
+   - `# Lingo Dojo session: <scenario title>`
    - `frame.md` body (placeholders substituted)
    - `## Learner` — a short block from the effective profile
    - `## Scenario` — title, summary, roles, beats, vocab table (if present), body

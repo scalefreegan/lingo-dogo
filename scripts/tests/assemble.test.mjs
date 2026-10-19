@@ -20,7 +20,7 @@ const h2 = (md) => md.split("\n").filter((l) => l.startsWith("## ")).map((l) => 
 test("renders the contract's sections in order", () => {
   const { markdown, warnings } = run({ notes: "More numbers." });
   assert.deepEqual(warnings, []);
-  assert.ok(markdown.startsWith("# Lingo Dogo session: Buying fruit at the market\n\nYou are the dojo master"));
+  assert.ok(markdown.startsWith("# Lingo Dojo session: Buying fruit at the market\n\nYou are the dojo master"));
   assert.deepEqual(h2(markdown), ["Learner", "Scenario", "Introduction", "Warm-up", "Corrections", "Debrief", "Notes from the learner"]);
   assert.ok(markdown.endsWith("## Notes from the learner\n\nMore numbers.\n"));
 });
@@ -101,14 +101,14 @@ test("overrides merge over the profile; blank overrides are ignored", () => {
 test("quick_scenario stands in for a scenario file, titled Quick scenario", () => {
   const { markdown, warnings } = run({ scenario: "", quick_scenario: "Ordering tacos at 1 a.m.\n\n" });
   assert.deepEqual(warnings, []);
-  assert.ok(markdown.startsWith(`# Lingo Dogo session: ${QUICK_SCENARIO_TITLE}\n`));
+  assert.ok(markdown.startsWith(`# Lingo Dojo session: ${QUICK_SCENARIO_TITLE}\n`));
   assert.ok(markdown.includes(`## Scenario\n\n### ${QUICK_SCENARIO_TITLE}\n\nOrdering tacos at 1 a.m.\n\n## Introduction`));
   assert.match(markdown, /Stay inside the scene "Quick scenario"\./);
 });
 
 test("scenario id wins over quick_scenario, with a warning", () => {
   const { markdown, warnings } = run({ quick_scenario: "Something else" });
-  assert.match(markdown, /^# Lingo Dogo session: Buying fruit at the market/);
+  assert.match(markdown, /^# Lingo Dojo session: Buying fruit at the market/);
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /quick scenario is ignored/);
 });

@@ -1,7 +1,7 @@
--- Lingo Dogo launcher: a stay-open Dock app wrapping the lingo-dogo dev server.
+-- Lingo Dojo launcher: a stay-open Dock app wrapping the lingo-dojo dev server.
 --
 -- Why this shape (lifted from wine-guide's Wine Guide.app, itself from
--- trail-train's Basecamp.app): Lingo Dogo is not a static site — research, chat
+-- trail-train's Basecamp.app): Lingo Dojo is not a static site — research, chat
 -- and the bulk queue are Vite dev-server middleware that spawn node and the
 -- `claude` CLI, so "the app" IS the dev server plus a browser tab. This
 -- applet gives that server real app semantics: launch by icon, a Dock
@@ -19,7 +19,7 @@
 --      nor match a Full Disk Access row against — so a script helper is
 --      denied silently and no new grant can be established. Before that
 --      update the opposite was true; see macos/README.md.
--- So the server runs as the BLOCKING child of "Lingo Dogo Server.app", a faceless
+-- So the server runs as the BLOCKING child of "Lingo Dojo Server.app", a faceless
 -- helper bundle that stays alive exactly as long as the server does. This
 -- applet is the Dock face: Quit pkills vite, which unwinds npm → helper.
 --
@@ -44,11 +44,11 @@ property startedByMe : false
 property downCount : 0
 
 on serverUp()
-	-- probe the app root and require Lingo Dogo's own page title, not merely a
+	-- probe the app root and require Lingo Dojo's own page title, not merely a
 	-- 200: any random process answering on the port must not read as ours
 	try
 		do shell script "curl -s --max-time 2 " & dashUrl & "/"
-		return result contains "<title>Lingo Dogo</title>"
+		return result contains "<title>Lingo Dojo</title>"
 	on error
 		return false
 	end try
@@ -58,7 +58,7 @@ on startServer()
 	-- -g: launch in the background, never stealing focus. The helper nests
 	-- inside THIS bundle (Contents/Helpers/), so resolve it from path to me —
 	-- one visible app in /Applications, and the pair can never split up.
-	set helperPath to POSIX path of (path to me) & "Contents/Helpers/Lingo Dogo Server.app"
+	set helperPath to POSIX path of (path to me) & "Contents/Helpers/Lingo Dojo Server.app"
 	try
 		do shell script "open -g " & quoted form of helperPath
 	on error errMsg
@@ -76,16 +76,16 @@ on startServer()
 	-- Timed out. The server may STILL be seconds from healthy — do not let
 	-- quit kill it; relinquish ownership so the next click simply adopts it.
 	set startedByMe to false
-	sayFailure("The server didn't answer within 30s — it may still be warming up (click the icon again shortly), or it failed: see ~/Library/Logs/LingoDogo.log. First run needs `npm install` in the repo root and web/, and macOS may be waiting on a Documents permission prompt for Lingo Dogo Server.")
+	sayFailure("The server didn't answer within 30s — it may still be warming up (click the icon again shortly), or it failed: see ~/Library/Logs/LingoDojo.log. First run needs `npm install` in the repo root and web/, and macOS may be waiting on a Documents permission prompt for Lingo Dojo Server.")
 	return false
 end startServer
 
 -- notifications are easily suppressed system-wide; failures also get a
 -- dialog (auto-dismissing) so they can never be fully silent
 on sayFailure(msg)
-	display notification msg with title "Lingo Dogo"
+	display notification msg with title "Lingo Dojo"
 	try
-		display dialog msg with title "Lingo Dogo" buttons {"OK"} default button "OK" giving up after 25
+		display dialog msg with title "Lingo Dojo" buttons {"OK"} default button "OK" giving up after 25
 	end try
 end sayFailure
 
@@ -103,7 +103,7 @@ on ensureUp()
 	if startServer() then
 		set wasUp to true
 		set downCount to 0
-		display notification "Lingo Dogo is open at " & dashUrl with title "Lingo Dogo"
+		display notification "Lingo Dojo is open at " & dashUrl with title "Lingo Dojo"
 		return true
 	end if
 	return false

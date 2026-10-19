@@ -111,7 +111,7 @@ export function assemble(content, rawPack) {
   }
 
   // 4. Render, in the contract's order.
-  const sections = [`# Lingo Dogo session: ${scenario.title}`];
+  const sections = [`# Lingo Dojo session: ${scenario.title}`];
   const frame = fill(content.frame ?? "", "frame.md").trim();
   if (frame) sections.push(frame);
   sections.push(renderLearner(profile));

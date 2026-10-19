@@ -135,7 +135,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col lg:h-screen">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel px-4 pr-10">
-        <h1 className="font-semibold tracking-tight text-fg">Lingo Dogo</h1>
+        <h1 className="font-semibold tracking-tight text-fg">Lingo Dojo</h1>
         <span className="hidden text-sm text-fg-3 sm:inline">prompt packs for the dojo master</span>
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" onClick={startNew} disabled={!content}>

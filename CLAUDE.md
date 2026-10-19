@@ -1,4 +1,4 @@
-# Lingo Dogo — agent instructions
+# Lingo Dojo — agent instructions
 
 Composable prompt-pack builder for language-practice sessions with a voice "dojo
 master". Single user, localhost, no auth, **no database**: all content is markdown

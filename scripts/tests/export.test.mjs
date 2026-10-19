@@ -24,7 +24,7 @@ function cli(args, exportsDir) {
 }
 
 test("writes exports/<id>.md, prints the path and stats; output equals assemble()", () => {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dogo-exports-"));
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dojo-exports-"));
   const exportsDir = path.join(out, "nested", "exports"); // mkdir -p
   const packFile = path.join(FIXTURE, "packs", "2026-10-19-market-gentle.yaml");
   const r = cli([packFile], exportsDir);
@@ -38,7 +38,7 @@ test("writes exports/<id>.md, prints the path and stats; output equals assemble(
 });
 
 test("warnings go to stderr and do not fail the export; a bad pack exits 1", () => {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dogo-exports-"));
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dojo-exports-"));
   const warnPack = write(out, "2026-10-21-warn.yaml", "title: Warn\nunits: [ghost]\n");
   const ok = cli([warnPack], out);
   assert.equal(ok.status, 0, ok.stderr);

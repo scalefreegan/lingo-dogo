@@ -12,7 +12,7 @@ export const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), "
 
 /** A fresh temp copy of the fixture content tree; returns its path. */
 export function copyFixture() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dogo-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dojo-"));
   const root = path.join(dir, "content");
   fs.cpSync(FIXTURE, root, { recursive: true });
   return root;

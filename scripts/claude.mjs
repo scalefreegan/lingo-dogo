@@ -220,10 +220,10 @@ export function startClaude({ prompt, systemPrompt, model, cwd = REPO_ROOT, sign
   const chosen = model ?? DEFAULT_MODEL;
   // Say which model actually went out: a setting that silently failed to
   // apply is otherwise invisible until the bill.
-  console.log(`[lingo-dogo] claude: spawning ${chosen} (max ${maxTurns} turns, ${timeoutSec}s timeout)`);
+  console.log(`[lingo-dojo] claude: spawning ${chosen} (max ${maxTurns} turns, ${timeoutSec}s timeout)`);
 
   // An EMPTY MCP config under --strict-mcp-config: see buildArgs.
-  let mcpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dogo-mcp-"));
+  let mcpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lingo-dojo-mcp-"));
   const mcpConfigPath = path.join(mcpDir, "mcp.json");
   fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: {} }), { mode: 0o600 });
   const cleanupMcp = () => {

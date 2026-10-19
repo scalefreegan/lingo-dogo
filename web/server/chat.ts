@@ -40,7 +40,7 @@ export function systemPrompt(c: ContentReply): string {
   const profile = Object.entries(c.profile)
     .map(([k, v]) => `  - ${k}: ${typeof v === "string" ? v.trim().replace(/\s+/g, " ") : JSON.stringify(v)}`)
     .join("\n");
-  return `You are the content editor for Lingo Dogo, a composable prompt-pack builder for language-practice sessions run elsewhere as a voice conversation with an AI "dojo master". You run headless inside the app; the user talks to you from a chat drawer and sees only your final reply.
+  return `You are the content editor for Lingo Dojo, a composable prompt-pack builder for language-practice sessions run elsewhere as a voice conversation with an AI "dojo master". You run headless inside the app; the user talks to you from a chat drawer and sees only your final reply.
 
 The content library is the product. It lives under content/ in this repository (${REPO_ROOT}): markdown with YAML frontmatter, plus YAML. Before you create or edit anything, read docs/CONTENT.md — it is the exact file-format contract, and the loader rejects files that break it. In short:
 - content/schema.yaml: the slots, in prompt order (id, title, pick: one|any, required, description).
@@ -126,12 +126,12 @@ async function handleChatPost(req: IncomingMessage, res: ServerResponse): Promis
     appendHistory(reply);
     send("message", { ...reply, role: "assistant", costUsd: run.costUsd, numTurns: run.numTurns, denied: run.permissionDenials.length } satisfies ChatReply);
     if (run.permissionDenials.length) {
-      console.warn(`[lingo-dogo] agent: ${run.permissionDenials.length} tool call(s) denied by the sandbox`, run.permissionDenials);
+      console.warn(`[lingo-dojo] agent: ${run.permissionDenials.length} tool call(s) denied by the sandbox`, run.permissionDenials);
     }
 
     const commit: ChatCommit = await commitContent(text);
     if ("hash" in commit) appendHistory({ role: "commit", text: `${commit.hash}: ${commit.summary}`, ts: now() });
-    else if ("error" in commit) console.error(`[lingo-dogo] agent: commit failed: ${commit.error}`);
+    else if ("error" in commit) console.error(`[lingo-dojo] agent: commit failed: ${commit.error}`);
     send("commit", commit);
     send("done", { ok: true } satisfies ChatDone);
   } catch (e) {
