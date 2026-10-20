@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { AGENT_MODELS, failureHint, startClaude } from "../../scripts/claude.mjs";
-import { REPO_ROOT, loadContent } from "../../scripts/content.mjs";
+import { MODES, REPO_ROOT, isMode } from "../../scripts/content.mjs";
+import { contentReply } from "./content.ts";
 import type {
   ChatCommit, ChatDone, ChatError, ChatHeartbeat, ChatHistoryReply, ChatMessage, ChatReply, ChatRequest, ChatStart,
-  ContentReply, SettingsReply, SettingsRequest,
+  ContentReply, Mode, SettingsReply, SettingsRequest,
 } from "../shared/wire.ts";
 import { commitContent } from "./commit.ts";
 import { HttpError, methodNotAllowed, openSse, readJsonBody, sendJson, subPath } from "./sse.ts";
@@ -40,15 +41,18 @@ export function systemPrompt(c: ContentReply): string {
   const profile = Object.entries(c.profile)
     .map(([k, v]) => `  - ${k}: ${typeof v === "string" ? v.trim().replace(/\s+/g, " ") : JSON.stringify(v)}`)
     .join("\n");
+  // The tree the user is looking at; the listing below is that tree's.
+  const tree = c.mode === "kids" ? "content/kids/" : "content/";
+  const other = c.mode === "kids" ? "content/ (adult mode)" : "content/kids/ (kids mode)";
   return `You are the content editor for Lingo Dojo, a composable prompt-pack builder for language-practice sessions run elsewhere as a voice conversation with an AI "dojo master". You run headless inside the app; the user talks to you from a chat drawer and sees only your final reply.
 
-The content library is the product. It lives under content/ in this repository (${REPO_ROOT}): markdown with YAML frontmatter, plus YAML. Before you create or edit anything, read docs/CONTENT.md — it is the exact file-format contract, and the loader rejects files that break it. In short:
-- content/schema.yaml: the slots, in prompt order (id, title, pick: one|any, required, description).
-- content/units/<id>.md: one unit. Frontmatter: id (MUST equal the filename stem), slot (a slot id), title, summary, tags (list), default (true/false, preselected in a new pack), level (list of CEFR levels, optional). The body is instructions to the dojo master, in English, second person ("you"), self-contained — no references to other units. Placeholders {{learner_name}}, {{native_language}}, {{target_language}}, {{target_variant}}, {{level}}, {{scenario_title}} are substituted at assembly time.
-- content/scenarios/<id>.md: the setting and story. Frontmatter: id, title, summary (required); tags, language, roles (mapping), beats (list), vocab (list of {term, gloss}) optional. The body is free prose for the dojo master.
-- content/profile.yaml: the learner. content/frame.md: the fixed preamble. content/packs/*.yaml: saved packs — the app writes these; leave them alone unless asked.
+The content library is the product. It lives under content/ in this repository (${REPO_ROOT}): markdown with YAML frontmatter, plus YAML. There are two libraries with the same file format: content/ is adult mode and content/kids/ is kids mode (sessions for a child who does not read yet), each with its own schema.yaml, frame.md, profile.yaml, units/, scenarios/ and packs/. The user is in ${c.mode} mode right now, looking at ${tree} — edit that tree unless they clearly ask about ${other}. Before you create or edit anything, read docs/CONTENT.md — it is the exact file-format contract, and the loader rejects files that break it. In short:
+- ${tree}schema.yaml: the slots, in prompt order (id, title, pick: one|any, required, description).
+- ${tree}units/<id>.md: one unit. Frontmatter: id (MUST equal the filename stem), slot (a slot id), title, summary, tags (list), default (true/false, preselected in a new pack), level (list of levels, optional: ${c.levels.join(", ")}). The body is instructions to the dojo master, in English, second person ("you"), self-contained — no references to other units. Placeholders {{learner_name}}, {{native_language}}, {{target_language}}, {{target_variant}}, {{level}}, {{scenario_title}} are substituted at assembly time.
+- ${tree}scenarios/<id>.md: the setting and story. Frontmatter: id, title, summary (required); tags, language, collection, category, roles (mapping), beats (list), twists (list), vocab (list of {term, gloss}) optional. The body is free prose for the dojo master.
+- ${tree}profile.yaml: the learner. ${tree}frame.md: the fixed preamble. ${tree}packs/*.yaml: saved packs — the app writes these; leave them alone unless asked.
 
-The library right now:
+The ${c.mode} library right now:
 Slots:
 ${slots || "  (none)"}
 Units (id — slot — title):
@@ -86,6 +90,8 @@ async function handleChatPost(req: IncomingMessage, res: ServerResponse): Promis
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message) throw new HttpError(400, "message is required");
   if (message.length > 20_000) throw new HttpError(413, "message too long");
+  const mode: Mode = body?.mode == null ? "adult" : (body.mode as Mode);
+  if (!isMode(mode)) throw new HttpError(400, `unknown mode ${JSON.stringify(body?.mode)} (one of ${MODES.join(", ")})`);
   // Checked and set synchronously after the one await above, so two bodies
   // arriving together cannot both pass.
   if (running) throw new HttpError(409, "the agent is already working on a message; wait for it to finish");
@@ -109,7 +115,7 @@ async function handleChatPost(req: IncomingMessage, res: ServerResponse): Promis
   try {
     const prior = readHistory().slice(-HISTORY_WINDOW);
     const model = getModel();
-    const system = systemPrompt(loadContent());
+    const system = systemPrompt(contentReply(mode));
     appendHistory({ role: "user", text: message, ts: now() });
     send("start", { model } satisfies ChatStart);
 

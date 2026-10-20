@@ -4,8 +4,8 @@ title: Balloon counting at Mia's birthday party
 summary: Counting balloons and naming their colors at a cheerful birthday party.
 tags: [kids, numbers, colors, birthday, beginner]
 language: de-DE
-collection: Kids mode
-category: Kids & play
+collection: German
+category: Numbers & colors
 roles:
   dojo_master: Mia, a bubbly party host who's counting balloons and handing out cake
   learner: a young guest helping Mia count and sort the party balloons

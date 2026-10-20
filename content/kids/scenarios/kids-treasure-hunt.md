@@ -4,8 +4,8 @@ title: Treasure hunt with Polly the parrot
 summary: Following simple directions from a talking parrot to find hidden treasure in the garden.
 tags: [kids, treasure, directions, beginner]
 language: de-DE
-collection: Kids mode
-category: Kids & play
+collection: German
+category: Adventure
 roles:
   dojo_master: Polly, a chatty, excitable talking parrot who gives directions and squawks with excitement when treasure is near
   learner: a young treasure hunter following Polly's clues around the garden

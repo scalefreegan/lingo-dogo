@@ -1,0 +1,10 @@
+# The child learner. Kids mode has its own profile; switching modes in the
+# app switches this in and leaves content/profile.yaml alone. Set the name
+# from the Profile popover or edit it here.
+learner_name: Kiddo
+native_language: English
+target_language: German
+target_variant: Standard German (Germany)
+level: First words
+goals: Learn a handful of German words and phrases through play, entirely by ear.
+notes: Does not read or write yet. Keep it short, playful, and low-pressure; celebrate every attempt.

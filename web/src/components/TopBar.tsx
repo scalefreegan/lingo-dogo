@@ -1,17 +1,17 @@
 import { useState } from "react";
-import type { ContentReply, ProfileRequest } from "../types";
+import type { ContentReply, Mode, ProfileRequest } from "../types";
 import type { Draft } from "../draft";
 import { Button } from "./ui";
 import ProfileControl from "./ProfileControl";
 import type { Tab } from "./shared";
 
-/* The top bar: the app's name, the three-step flow as tabs, Library off to
- * the side (it's a destination, not a step), and the two actions that touch
- * the whole draft (New pack, Reload content) tucked behind "…" so they don't
- * compete with the tabs for attention. On a phone (below `sm`) Library moves
- * into that "…" menu — the bar can't hold four tabs and the menu at 390px —
- * and the three flow tabs scroll in their own strip rather than widening
- * the page. */
+/* The top bar: the app's name (with a "Kids" tag when that library is
+ * open), the three-step flow as tabs, Library off to the side (it's a
+ * destination, not a step), and the two actions that touch the whole draft
+ * (New pack, Reload content) tucked behind "…" so they don't compete with
+ * the tabs for attention. On a phone (below `sm`) Library moves into that
+ * "…" menu — the bar can't hold four tabs and the menu at 390px — and the
+ * three flow tabs scroll in their own strip rather than widening the page. */
 export default function TopBar({
   tab,
   onTab,
@@ -19,6 +19,8 @@ export default function TopBar({
   onReload,
   reloading,
   ready,
+  mode,
+  onMode,
   content,
   draft,
   onChange,
@@ -30,6 +32,8 @@ export default function TopBar({
   onReload: () => void;
   reloading: boolean;
   ready: boolean;
+  mode: Mode;
+  onMode: (m: Mode) => void;
   /** Null until the first load; the Profile pill appears with them. */
   content: ContentReply | null;
   draft: Draft | null;
@@ -38,7 +42,14 @@ export default function TopBar({
 }) {
   return (
     <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-1 border-b border-line bg-panel px-4 sm:pr-10">
-      <h1 className="mr-2 shrink-0 text-base font-semibold text-fg">Lingo Dojo</h1>
+      <h1 className="mr-2 flex shrink-0 items-center gap-1.5 text-base font-semibold text-fg">
+        Lingo Dojo
+        {mode === "kids" && (
+          <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium leading-none text-accent" data-testid="mode-tag">
+            Kids
+          </span>
+        )}
+      </h1>
       {/* min-w-0 + overflow-x-auto: on a phone narrower than the three tabs
           the strip scrolls sideways by itself instead of widening the page. */}
       <nav className="flex h-full min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none]" aria-label="Sections">
@@ -47,7 +58,9 @@ export default function TopBar({
         <TabButton label="Go" active={tab === "go"} onClick={() => onTab("go")} />
       </nav>
       <div className="ml-auto flex h-full shrink-0 items-center gap-1">
-        {content && draft && <ProfileControl content={content} draft={draft} onChange={onChange} onSaveDefaults={onSaveDefaults} />}
+        {content && draft && (
+          <ProfileControl content={content} draft={draft} mode={mode} onMode={onMode} onChange={onChange} onSaveDefaults={onSaveDefaults} />
+        )}
         <TabButton label="Library" active={tab === "library"} onClick={() => onTab("library")} className="hidden sm:flex" />
         <OverflowMenu onNewPack={onNewPack} onReload={onReload} reloading={reloading} ready={ready} libraryActive={tab === "library"} onLibrary={() => onTab("library")} />
       </div>

@@ -130,7 +130,7 @@ export function assemble(content, rawPack) {
   const frame = fill(content.frame ?? "", "frame.md").trim();
   if (frame) sections.push(frame);
   sections.push(renderLearner(profile));
-  sections.push(renderScenario(scenario));
+  sections.push(renderScenario(scenario, fill));
   sections.push(...slotSections);
   const notes = pack.notes.trim();
   if (notes) sections.push(`## Notes from the learner\n\n${notes}`);
@@ -212,7 +212,9 @@ function cell(s) {
   return String(s).replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|").trim();
 }
 
-function renderScenario(s) {
+/** `fill` substitutes placeholders in the body: scenarios are written to the
+ *  learner by name ("{{learner_name}} arrives at the gate"), like units. */
+function renderScenario(s, fill) {
   if (s.missing) return `## Scenario\n\n${MISSING_SCENARIO_LINE}`;
   const parts = ["## Scenario", `### ${s.title}`];
   if (s.summary) parts.push(s.summary);
@@ -235,7 +237,7 @@ function renderScenario(s) {
     parts.push("**Possible twists** (use only if a Variation unit below asks for one)");
     parts.push(s.twists.map((t) => `- ${t}`).join("\n"));
   }
-  const body = (s.body ?? "").trimEnd();
+  const body = fill(s.body ?? "", s.id ? `scenario "${s.id}"` : "the quick scenario").trimEnd();
   if (body) parts.push(body);
   return parts.join("\n\n");
 }

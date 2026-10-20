@@ -1,0 +1,20 @@
+version: 1
+slots:
+  - id: intro
+    group: Session flow
+    title: Opening
+    pick: one
+    required: true
+    description: How the session starts.
+  - id: story
+    group: Story shape
+    title: Story shape
+    pick: one
+    required: true
+    description: How the session unfolds.
+  - id: games
+    group: Repetition games
+    title: Repetition games
+    pick: any
+    required: false
+    description: How new words get drilled through play.

@@ -32,6 +32,25 @@
   --err-soft: #fde9e7;
 }
 
+/* Kids mode (App sets data-mode on <html>): the same calm palette with a
+   warmer, sunnier accent, so a glance at the pill or a selected card says
+   which library is open. Nothing else changes. */
+:root[data-mode="kids"] {
+  --accent: #b8551e;
+  --accent-hover: #9c4616;
+  --accent-ink: #ffffff;
+  --accent-soft: #f8e7dc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-mode="kids"] {
+    --accent: #f0a36a;
+    --accent-hover: #f5b886;
+    --accent-ink: #2a1708;
+    --accent-soft: #3a2719;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --ground: #141412;

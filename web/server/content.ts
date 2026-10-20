@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { assemble } from "../../scripts/assemble.mjs";
 import {
-  ID_RE, PACK_ID_RE, createFolder, deleteFolder, deletePack, listFolders, loadContent, movePack, renamePack, savePack,
-  saveProfile, writeExport,
+  ID_RE, LEVELS_BY_MODE, MODES, PACK_ID_RE, createFolder, deleteFolder, deletePack, exportsDirFor, isMode, listFolders, loadContent,
+  modeRoot, movePack, renamePack, savePack, saveProfile, writeExport,
 } from "../../scripts/content.mjs";
 import type {
-  AssembleRequest, AssembleResult, Committed, ContentReply, ExportRequest, ExportResult, FolderDeleteReply, FolderReply,
+  AssembleRequest, AssembleResult, Committed, ContentReply, ExportRequest, ExportResult, FolderDeleteReply, FolderReply, Mode,
   Pack, PackDeleteReply, PackReply, PackWriteReply, PacksReply, PickerKey, ProfileReply, ProfileRequest,
 } from "../shared/wire.ts";
 import { commitPacks } from "./commit.ts";
@@ -16,27 +16,41 @@ import { HttpError, methodNotAllowed, readJsonBody, sendJson, subPath } from "./
 // and a cache would be one more thing to invalidate. The loader and assembler
 // are the same modules the export CLI and the tests run.
 //
-//   GET    /api/content            library (schema, frame, profile, languages, units, scenarios, problems)
-//   PUT    /api/profile            merge the picker keys into content/profile.yaml → {profile}
+// Every route takes `?mode=adult|kids` (adult when absent, 400 otherwise) and
+// works on that mode's tree: content/ or content/kids/ (scripts/content.mjs
+// modeRoot). The two trees never mix: a kids pack lives in content/kids/packs
+// and a kids export in exports/kids/.
+//
+//   GET    /api/content            library (mode, levels, schema, frame, profile, languages, units, scenarios, problems)
+//   PUT    /api/profile            merge the picker keys into <tree>/profile.yaml → {profile}
 //   GET    /api/packs              {packs, folders, problems}
 //   GET    /api/packs/:id          one pack; an id is <stem> or <folder>/<stem>
-//   PUT    /api/packs/:id          write content/packs/<id>.yaml from a JSON pack → {pack, commit}
+//   PUT    /api/packs/:id          write <tree>/packs/<id>.yaml from a JSON pack → {pack, commit}
 //   DELETE /api/packs/:id          → {ok, commit}
 //   POST   /api/packs/:id/move     {folder} → {pack, commit}, pack.id being the new id
 //   POST   /api/packs/:id/rename   {title} → {pack, commit}, likewise
 //   POST   /api/folders            {name} → {folder, folders, commit}
 //   DELETE /api/folders/:name      → {ok, folders, commit}; only an empty folder
 //   POST   /api/assemble           {pack} → {markdown, warnings, stats}
-//   POST   /api/export             {pack, id} → writes exports/<id>.md, {path, stats, warnings}
+//   POST   /api/export             {pack, id} → writes <exports>/<id>.md, {path, stats, warnings}
 //
 // Ids come from the request, so each is checked here (a 400 the user can
 // read) and again inside the loader's write functions, which also prove the
-// resolved path stays inside content/packs or exports/.
+// resolved path stays inside the tree's packs dir or exports/.
 //
 // Every pack write, move, rename or delete is followed by a `packs: …` commit
-// of content/packs (commit.ts). The write is the result; the commit is
-// reported beside it, and a git failure is `commit: null` plus `error` on a
-// 200 rather than a failed request — the file is already on disk.
+// (`packs(kids): …` for the kids tree) of that packs dir (commit.ts). The
+// write is the result; the commit is reported beside it, and a git failure
+// is `commit: null` plus `error` on a 200 rather than a failed request — the
+// file is already on disk.
+
+/** `?mode=` from the request: adult when absent, a 400 when not a mode. */
+function modeOf(req: IncomingMessage): Mode {
+  const raw = new URL(req.url ?? "/", "http://localhost").searchParams.get("mode");
+  if (raw == null || raw === "") return "adult";
+  if (!isMode(raw)) throw new HttpError(400, `unknown mode ${JSON.stringify(raw)} (one of ${MODES.join(", ")})`);
+  return raw as Mode;
+}
 
 /** An export id: one segment. */
 function checkId(id: unknown): string {
@@ -75,37 +89,45 @@ function fromLoader<T>(fn: () => T): T {
 
 /** The commit half of a write reply. A git failure is logged and reported,
  *  never thrown: the write it was recording has already happened. */
-async function committed(what: string): Promise<Committed> {
-  const c = await commitPacks(what);
+async function committed(what: string, mode: Mode): Promise<Committed> {
+  const c = await commitPacks(what, { mode });
   if ("hash" in c) return { commit: { hash: c.hash, summary: c.summary } };
   if ("error" in c) {
-    console.error(`[lingo-dojo] packs: commit failed (${what}): ${c.error}`);
+    console.error(`[lingo-dojo] ${mode === "adult" ? "packs" : `packs(${mode})`}: commit failed (${what}): ${c.error}`);
     return { commit: null, error: `written, but git did not commit it: ${c.error}` };
   }
   return { commit: null };
 }
 
+/** GET /api/content's shape for a mode: the loader's result plus the mode
+ *  and its level list, minus packs. The chat route builds its system prompt
+ *  from the same shape. */
+export function contentReply(mode: Mode): ContentReply {
+  const c = loadContent(modeRoot(mode));
+  return {
+    mode, levels: LEVELS_BY_MODE[mode], root: c.root, schema: c.schema, frame: c.frame, profile: c.profile, languages: c.languages,
+    units: c.units, scenarios: c.scenarios, problems: c.problems,
+  };
+}
+
 export function handleContent(req: IncomingMessage, res: ServerResponse): void {
   if (req.method !== "GET") return methodNotAllowed(res, "GET");
   if (subPath(req)) return sendJson(res, 404, { error: "no such route" });
-  const c = loadContent();
-  const reply: ContentReply = {
-    root: c.root, schema: c.schema, frame: c.frame, profile: c.profile, languages: c.languages,
-    units: c.units, scenarios: c.scenarios, problems: c.problems,
-  };
-  sendJson(res, 200, reply);
+  sendJson(res, 200, contentReply(modeOf(req)));
 }
 
-/** The keys PUT /api/profile may write: what the pickers show. The rest of
- *  profile.yaml (name, goals, notes) is prose a person edits in the file or
- *  asks the agent for, and this route must not be a way to clobber it. */
-const PICKER_KEYS: ReadonlySet<string> = new Set<PickerKey>(["native_language", "target_language", "target_variant", "level"]);
-/** A language or variant name is a few words; this is a sanity bound, not a format. */
+/** The keys PUT /api/profile may write: what the pickers and the Name field
+ *  show. The rest of profile.yaml (goals, notes) is prose a person edits in
+ *  the file or asks the agent for, and this route must not be a way to
+ *  clobber it. */
+const PICKER_KEYS: ReadonlySet<string> = new Set<PickerKey>(["learner_name", "native_language", "target_language", "target_variant", "level"]);
+/** A name, a language or a variant is a few words; this is a sanity bound, not a format. */
 const MAX_PROFILE_VALUE = 80;
 
 export async function handleProfile(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (subPath(req)) return sendJson(res, 404, { error: "no such route" });
   if (req.method !== "PUT") return methodNotAllowed(res, "PUT");
+  const mode = modeOf(req);
   const body = await readJsonBody<unknown>(req);
   if (!isObject(body)) throw new HttpError(400, "body must be an object of profile keys");
   const patch: ProfileRequest = {};
@@ -116,19 +138,21 @@ export async function handleProfile(req: IncomingMessage, res: ServerResponse): 
     patch[key as PickerKey] = value;
   }
   if (Object.keys(patch).length === 0) throw new HttpError(400, "nothing to save: the body names no profile key");
-  saveProfile(patch);
+  saveProfile(patch, modeRoot(mode));
   // Read back through the loader, like packs: the reply is what the file now
   // says, not an echo of the request.
-  sendJson(res, 200, { profile: loadContent().profile } satisfies ProfileReply);
+  sendJson(res, 200, { profile: loadContent(modeRoot(mode)).profile } satisfies ProfileReply);
 }
 
 export async function handlePacks(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const mode = modeOf(req);
+  const root = modeRoot(mode);
   const seg = subPath(req);
   if (!seg) {
     if (req.method !== "GET") return methodNotAllowed(res, "GET");
-    const { packs, problems } = loadContent();
+    const { packs, problems } = loadContent(root);
     const packProblems = problems.filter((p) => /(^|[\\/])packs[\\/]/.test(p.file));
-    sendJson(res, 200, { packs, folders: listFolders(), problems: packProblems } satisfies PacksReply);
+    sendJson(res, 200, { packs, folders: listFolders(root), problems: packProblems } satisfies PacksReply);
     return;
   }
   // POST /api/packs/<id>/<action>: the action is the last segment and the id
@@ -140,7 +164,7 @@ export async function handlePacks(req: IncomingMessage, res: ServerResponse): Pr
   // Every write reads back through the loader, so the reply is what the file
   // now says (and what GET /api/packs will list), not an echo of the request.
   const readBack = (packId: string, verb: string): Pack => {
-    const pack = loadContent().packs.find((p) => p.id === packId);
+    const pack = loadContent(root).packs.find((p) => p.id === packId);
     if (!pack) throw new Error(`pack ${packId} was ${verb} but does not load back`);
     return pack;
   };
@@ -149,22 +173,22 @@ export async function handlePacks(req: IncomingMessage, res: ServerResponse): Pr
     const body = await readJsonBody<unknown>(req);
     if (!isObject(body) || typeof body.folder !== "string") throw new HttpError(400, 'body must be {folder} ("" for no folder)');
     const folder = body.folder;
-    const newId = fromLoader(() => movePack(id, folder));
+    const newId = fromLoader(() => movePack(id, folder, root));
     const pack = readBack(newId, "moved");
-    sendJson(res, 200, { pack, ...(await committed(`moved ${id} to ${folder || "no folder"}`)) } satisfies PackWriteReply);
+    sendJson(res, 200, { pack, ...(await committed(`moved ${id} to ${folder || "no folder"}`, mode)) } satisfies PackWriteReply);
     return;
   }
   if (action === "rename") {
     const body = await readJsonBody<unknown>(req);
     const title = isObject(body) ? body.title : undefined;
     if (typeof title !== "string" || !title.trim()) throw new HttpError(400, "body must be {title}, and a pack needs a title");
-    const newId = fromLoader(() => renamePack(id, title));
+    const newId = fromLoader(() => renamePack(id, title, root));
     const pack = readBack(newId, "renamed");
-    sendJson(res, 200, { pack, ...(await committed(`renamed ${id} to ${newId}`)) } satisfies PackWriteReply);
+    sendJson(res, 200, { pack, ...(await committed(`renamed ${id} to ${newId}`, mode)) } satisfies PackWriteReply);
     return;
   }
   if (req.method === "GET") {
-    const pack = loadContent().packs.find((p) => p.id === id);
+    const pack = loadContent(root).packs.find((p) => p.id === id);
     if (!pack) return sendJson(res, 404, { error: `no pack "${id}"` });
     sendJson(res, 200, { pack } satisfies PackReply);
     return;
@@ -175,48 +199,52 @@ export async function handlePacks(req: IncomingMessage, res: ServerResponse): Pr
     if (typeof body.title !== "string" || !body.title.trim()) throw new HttpError(400, "a pack needs a title");
     const title = body.title.trim();
     const created = typeof body.created === "string" && body.created ? body.created : new Date().toISOString();
-    fromLoader(() => savePack(id, { ...body, title, created }));
+    fromLoader(() => savePack(id, { ...body, title, created }, root));
     const pack = readBack(id, "written");
-    sendJson(res, 200, { pack, ...(await committed(`saved ${id}`)) } satisfies PackWriteReply);
+    sendJson(res, 200, { pack, ...(await committed(`saved ${id}`, mode)) } satisfies PackWriteReply);
     return;
   }
   if (req.method === "DELETE") {
-    if (!fromLoader(() => deletePack(id))) return sendJson(res, 404, { error: `no pack "${id}"` });
-    sendJson(res, 200, { ok: true, ...(await committed(`deleted ${id}`)) } satisfies PackDeleteReply);
+    if (!fromLoader(() => deletePack(id, root))) return sendJson(res, 404, { error: `no pack "${id}"` });
+    sendJson(res, 200, { ok: true, ...(await committed(`deleted ${id}`, mode)) } satisfies PackDeleteReply);
     return;
   }
   methodNotAllowed(res, "GET, PUT, DELETE");
 }
 
 export async function handleFolders(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const mode = modeOf(req);
+  const root = modeRoot(mode);
   const name = subPath(req);
   if (!name) {
     if (req.method !== "POST") return methodNotAllowed(res, "POST");
     const body = await readJsonBody<unknown>(req);
     if (!isObject(body) || typeof body.name !== "string") throw new HttpError(400, "body must be {name}");
     const folder = body.name;
-    fromLoader(() => createFolder(folder)); // EINVAL on a bad name → 400, EEXIST → 409
-    sendJson(res, 200, { folder, folders: listFolders(), ...(await committed(`folder ${folder} created`)) } satisfies FolderReply);
+    fromLoader(() => createFolder(folder, root)); // EINVAL on a bad name → 400, EEXIST → 409
+    sendJson(res, 200, { folder, folders: listFolders(root), ...(await committed(`folder ${folder} created`, mode)) } satisfies FolderReply);
     return;
   }
   if (req.method !== "DELETE") return methodNotAllowed(res, "DELETE");
-  if (!fromLoader(() => deleteFolder(name))) return sendJson(res, 404, { error: `no folder "${name}"` });
-  sendJson(res, 200, { ok: true, folders: listFolders(), ...(await committed(`folder ${name} deleted`)) } satisfies FolderDeleteReply);
+  if (!fromLoader(() => deleteFolder(name, root))) return sendJson(res, 404, { error: `no folder "${name}"` });
+  sendJson(res, 200, { ok: true, folders: listFolders(root), ...(await committed(`folder ${name} deleted`, mode)) } satisfies FolderDeleteReply);
 }
 
 export async function handleAssemble(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== "POST") return methodNotAllowed(res, "POST");
+  const mode = modeOf(req);
   const body = await readJsonBody<Partial<AssembleRequest>>(req);
   if (!isObject(body) || !isObject(body.pack)) throw new HttpError(400, "body must be {pack}");
-  sendJson(res, 200, assemble(loadContent(), body.pack) satisfies AssembleResult);
+  sendJson(res, 200, assemble(loadContent(modeRoot(mode)), body.pack) satisfies AssembleResult);
 }
 
 export async function handleExport(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== "POST") return methodNotAllowed(res, "POST");
+  const mode = modeOf(req);
   const body = await readJsonBody<Partial<ExportRequest>>(req);
   if (!isObject(body) || !isObject(body.pack)) throw new HttpError(400, "body must be {pack, id}");
   const id = checkId(body.id);
-  const { markdown, stats, warnings } = assemble(loadContent(), body.pack);
-  const path = writeExport(id, markdown);
+  const { markdown, stats, warnings } = assemble(loadContent(modeRoot(mode)), body.pack);
+  const path = writeExport(id, markdown, exportsDirFor(mode));
   sendJson(res, 200, { path, stats, warnings } satisfies ExportResult);
 }

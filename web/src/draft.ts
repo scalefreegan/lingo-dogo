@@ -3,19 +3,19 @@
  * live in one place and read like the contract they implement
  * (docs/CONTENT.md: "order within a slot follows the pack"). */
 
-import type { ContentReply, Language, Pack, PackInput, PickerKey, Profile, Slot, Unit } from "./types";
+import type { ContentReply, Language, Mode, Pack, PackInput, PickerKey, Profile, Slot, Unit } from "./types";
 
 export type OverrideKey = PickerKey;
+/** The Profile popover's fields, in display order. The level picker's
+ *  options come from `content.levels` (per mode); a profile level outside
+ *  that list is still shown (prepended), never silently replaced. */
 export const OVERRIDE_FIELDS: { key: OverrideKey; label: string }[] = [
+  { key: "learner_name", label: "Name" },
   { key: "native_language", label: "Native language" },
   { key: "target_language", label: "Target language" },
   { key: "target_variant", label: "Variant" },
   { key: "level", label: "Level" },
 ];
-
-/** CEFR, the level picker's options; a profile level outside the list is
- *  still shown (prepended), never silently replaced. */
-export const LEVELS = ["Kids", "A1", "A2", "B1", "B2", "C1", "C2"];
 
 export interface Draft {
   /** "" until saved or loaded. */
@@ -41,7 +41,7 @@ export interface Draft {
 }
 
 export const emptyOverrides = (): Record<OverrideKey, string> => ({
-  native_language: "", target_language: "", target_variant: "", level: "",
+  learner_name: "", native_language: "", target_language: "", target_variant: "", level: "",
 });
 
 /* ------------------------------- pickers -------------------------------- */
@@ -68,14 +68,15 @@ export function formatSessionLine(session: Record<OverrideKey, string>): string 
   return [`${session.native_language} → ${session.target_language}`, session.target_variant, session.level].filter(Boolean).join(" · ");
 }
 
-/** The four values the "This session" card shows and the prompt uses:
- *  override if set, else the profile's. Native language falls back to
- *  English when neither says. */
+/** The values the Profile popover shows and the prompt uses: override if
+ *  set, else the profile's. Native language falls back to English when
+ *  neither says. */
 export function sessionValues(draft: Draft, profile: Profile): Record<OverrideKey, string> {
   const o = draft.overrides;
   const target = o.target_language || profileValue(profile, "target_language");
   const pick = (key: OverrideKey) => o[key] || profileDefault(profile, key, target);
   return {
+    learner_name: pick("learner_name"),
     native_language: pick("native_language") || "English",
     target_language: target,
     target_variant: pick("target_variant"),
@@ -268,14 +269,21 @@ export function packId(title: string, d = new Date()): string {
 
 /* ------------------------- remembering the draft ------------------------- */
 
+/** A browser-storage key for a mode: adult keeps the original key, kids gets
+ *  a `.kids` suffix, so each mode's draft, tab and Scene filters survive a
+ *  switch to the other. */
+export function modeKey(base: string, mode: Mode): string {
+  return mode === "adult" ? base : `${base}.${mode}`;
+}
+
 const DRAFT_KEY = "lingo-dojo.draft.v1";
 
-/** The last draft, so a refresh doesn't throw away today's selections.
- *  Browser storage only: a per-machine convenience, never the record (saved
- *  packs are). Any read failure means "start fresh". */
-export function loadRememberedDraft(): Draft | null {
+/** The last draft in this mode, so a refresh doesn't throw away today's
+ *  selections. Browser storage only: a per-machine convenience, never the
+ *  record (saved packs are). Any read failure means "start fresh". */
+export function loadRememberedDraft(mode: Mode): Draft | null {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(modeKey(DRAFT_KEY, mode));
     if (!raw) return null;
     const d = JSON.parse(raw) as Partial<Draft>;
     if (!Array.isArray(d.units) || typeof d.overrides !== "object" || d.overrides === null) return null;
@@ -285,10 +293,10 @@ export function loadRememberedDraft(): Draft | null {
   }
 }
 
-export function rememberDraft(draft: Draft | null): void {
+export function rememberDraft(mode: Mode, draft: Draft | null): void {
   try {
-    if (draft) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    else localStorage.removeItem(DRAFT_KEY);
+    if (draft) localStorage.setItem(modeKey(DRAFT_KEY, mode), JSON.stringify(draft));
+    else localStorage.removeItem(modeKey(DRAFT_KEY, mode));
   } catch {
     /* private window or blocked storage: nothing to remember into */
   }

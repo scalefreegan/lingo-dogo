@@ -78,7 +78,7 @@ tags: [oaxaca, mezcal, travel]
 language: es-MX               # suggested target variant; profile can override
 collection: Oaxaca trip       # optional; Scene tab groups cards under this heading
 category: Food & drink        # optional; Scene tab filter chip. Use one of:
-                              #   Kids & play · Food & drink · Getting around · Shopping ·
+                              #   Food & drink · Getting around · Shopping ·
                               #   Outdoors & sport · Culture & guides ·
                               #   Lodging & logistics · Health & help
 roles:
@@ -100,7 +100,8 @@ dojo master: setting, mood, what the learner is trying to accomplish, what
 success looks like.)
 ```
 
-Only `id`, `title`, `summary` are required. Everything else is optional.
+Only `id`, `title`, `summary` are required. Everything else is optional. The body
+may use the same placeholders as units; they are substituted at assembly time.
 
 ## `content/profile.yaml` — the learner
 
@@ -158,6 +159,18 @@ The pack's `id` is the path relative to `content/packs/` without the extension:
 Folder names and file stems are both kebab-case. An empty folder is kept on disk
 with a `.keep` file so it survives git. Every pack write, move, or delete made by
 the app is a git commit (`packs: <what>`), so nothing is lost: `git log -- content/packs`.
+
+## Modes: `content/` and `content/kids/`
+
+The app has two modes, each a complete content tree in the same file formats.
+`content/` is adult mode. `content/kids/` is kids mode: its own `schema.yaml`
+(story, helper, games, energy slots instead of style and difficulty), `frame.md`,
+`profile.yaml`, `units/`, `scenarios/`, and `packs/`. `languages.yaml` is shared
+from the root. The kids level scale is `First words` · `Getting going` · `Chatty`
+(not CEFR); kids units carry those in `level`. Packs are addressed by the same
+ids within their tree (`2026-10-20-first-german-adventure` in kids mode is
+`content/kids/packs/2026-10-20-first-german-adventure.yaml`). Kids scenario
+categories: Animals · Numbers & colors · Food · Bedtime · Adventure.
 
 ## `content/frame.md` — the fixed preamble
 

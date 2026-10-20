@@ -1,0 +1,53 @@
+# Kids mode slots. A separate schema from the adult one: sessions for a child
+# who does not read or write yet are shaped by story, play, and energy, not
+# by conversation style and difficulty. Same file format as content/schema.yaml.
+version: 1
+slots:
+  - id: intro
+    group: Session flow
+    title: Opening
+    pick: one
+    required: true
+    description: How the session starts, as a game, in the child's native language.
+  - id: narrator
+    group: Voices
+    title: Narrator
+    pick: one
+    required: true
+    description: "The guide voice: always a native speaker of the target language, warm and clear."
+  - id: helper
+    group: Voices
+    title: Helper character
+    pick: one
+    required: true
+    description: "A sidekick who is always there with one fixed, silly voice: the child's anchor across the whole session."
+  - id: story
+    group: Story shape
+    title: Story shape
+    pick: one
+    required: true
+    description: How the session unfolds, e.g. a quest, a silly mix-up, a bedtime story, a game show.
+  - id: games
+    group: Repetition games
+    title: Repetition games
+    pick: any
+    required: false
+    description: How new words get drilled through play, e.g. echo, call-and-response, counting, tiny-and-giant voice.
+  - id: energy
+    group: Energy and length
+    title: Energy and length
+    pick: one
+    required: true
+    description: Calm or bouncy, and how many minutes, with the rule for stopping when attention runs out.
+  - id: corrections
+    group: Teaching style
+    title: Corrections
+    pick: one
+    required: true
+    description: What happens when the child says something that isn't quite right.
+  - id: ending
+    group: Session flow
+    title: Ending
+    pick: any
+    required: false
+    description: How the session closes.

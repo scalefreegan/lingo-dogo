@@ -4,8 +4,8 @@ title: Silly snack time with Bruno the hungry monster
 summary: Choosing and sharing snacks with a goofy, extremely hungry puppet monster.
 tags: [kids, food, snack, beginner]
 language: de-DE
-collection: Kids mode
-category: Kids & play
+collection: German
+category: Food
 roles:
   dojo_master: Bruno, a goofy, lovable monster puppet who is always hungry and reacts big to every food
   learner: a young friend sharing snack time with Bruno

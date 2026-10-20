@@ -108,10 +108,20 @@ export interface Problem {
   message: string;
 }
 
-/** GET /api/content — the loader's result minus packs (they have their own
- *  routes), re-read from disk on every call so an agent or editor change shows
- *  up without a restart. */
+/** The two libraries: "adult" is content/, "kids" is content/kids/ (its own
+ *  schema, frame, profile, units, scenarios and packs). Every content, pack,
+ *  folder, assemble, export and profile route takes `?mode=`; adult when
+ *  absent. */
+export type Mode = "adult" | "kids";
+
+/** GET /api/content?mode= — the loader's result minus packs (they have their
+ *  own routes), re-read from disk on every call so an agent or editor change
+ *  shows up without a restart. */
 export interface ContentReply {
+  mode: Mode;
+  /** The level picker's options for this mode (CEFR for adult, a child-sized
+   *  scale for kids); a profile level outside the list is still shown. */
+  levels: string[];
   root: string;
   schema: Schema;
   frame: string;
@@ -126,11 +136,12 @@ export interface ContentReply {
 /* -------------------------------- profile -------------------------------- */
 
 /** The profile keys the UI's pickers can write ("Save as my defaults"). */
-export type PickerKey = "native_language" | "target_language" | "target_variant" | "level";
+export type PickerKey = "learner_name" | "native_language" | "target_language" | "target_variant" | "level";
 
-/** PUT /api/profile — any subset of the picker keys, strings of at most 80
- *  characters; a blank value removes the key from profile.yaml. Everything
- *  else in the profile (name, goals, notes) is edited in the file. */
+/** PUT /api/profile?mode= — any subset of the picker keys, strings of at
+ *  most 80 characters; a blank value removes the key from that mode's
+ *  profile.yaml. Everything else in the profile (goals, notes) is edited in
+ *  the file. */
 export type ProfileRequest = Partial<Record<PickerKey, string>>;
 
 /** The profile as it reads back from disk after the write. */
@@ -289,6 +300,9 @@ export interface ChatHistoryReply {
  *  run is already in progress: one agent at a time, by design. */
 export interface ChatRequest {
   message: string;
+  /** The library the user is looking at; the agent is told to edit that
+   *  tree. Adult when absent. */
+  mode?: Mode;
 }
 
 /** SSE `start`: the run began, with the model it went out on. */

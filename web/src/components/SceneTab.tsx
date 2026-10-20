@@ -1,19 +1,20 @@
 import { useMemo, useState } from "react";
-import type { ContentReply } from "../types";
-import { fold, type Draft } from "../draft";
+import type { ContentReply, Mode } from "../types";
+import { fold, modeKey, type Draft } from "../draft";
 import { Button, Chevron, inputClass } from "./ui";
 
 const FILTER_KEY = "lingo-dojo.scene-filter.v1";
-/** Chip order; any other category a scenario uses follows alphabetically. */
-const CATEGORY_ORDER = ["Kids & play", "Food & drink", "Getting around", "Shopping", "Outdoors & sport", "Culture & guides", "Lodging & logistics", "Health & help"];
+/** Chip order (the adult library's categories); any other category a
+ *  scenario uses, the kids library's included, follows alphabetically. */
+const CATEGORY_ORDER = ["Food & drink", "Getting around", "Shopping", "Outdoors & sport", "Culture & guides", "Lodging & logistics", "Health & help"];
 const OTHER_SCENES = "Other scenes";
 const FOLDERS_KEY = "lingo-dojo.scene-folders.v1";
 
 /** Open/closed per collection, as the user last left it. A collection absent
  *  from the map has never been toggled and takes its default. */
-function loadFolders(): Record<string, boolean> {
+function loadFolders(mode: Mode): Record<string, boolean> {
   try {
-    const raw = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? "null") as Record<string, unknown> | null;
+    const raw = JSON.parse(localStorage.getItem(modeKey(FOLDERS_KEY, mode)) ?? "null") as Record<string, unknown> | null;
     if (!raw || typeof raw !== "object") return {};
     return Object.fromEntries(Object.entries(raw).filter(([, v]) => typeof v === "boolean")) as Record<string, boolean>;
   } catch {
@@ -27,9 +28,9 @@ interface Filter {
   category: string;
 }
 
-function loadFilter(): Filter {
+function loadFilter(mode: Mode): Filter {
   try {
-    const f = JSON.parse(localStorage.getItem(FILTER_KEY) ?? "null") as Partial<Filter> | null;
+    const f = JSON.parse(localStorage.getItem(modeKey(FILTER_KEY, mode)) ?? "null") as Partial<Filter> | null;
     return { query: typeof f?.query === "string" ? f.query : "", category: typeof f?.category === "string" ? f.category : "" };
   } catch {
     return { query: "", category: "" };
@@ -39,7 +40,9 @@ function loadFilter(): Filter {
 /* Scene tab: what the session is about — a library scenario or a quick one.
  * Library scenes sit in collapsible collection folders under search and
  * category chips; who the session is for lives in the top bar's Profile
- * control, and the note for the dojo master on the Go tab. */
+ * control, and the note for the dojo master on the Go tab. Filters and
+ * folder state are remembered per mode; App remounts this tab on a mode
+ * switch (key={mode}) so the initial-state readers run again. */
 export default function SceneTab({
   content,
   draft,
@@ -52,20 +55,20 @@ export default function SceneTab({
   onNext: () => void;
 }) {
   const quick = draft.scenarioMode === "quick";
-  const { scenarios } = content;
-  const [filter, setFilterState] = useState<Filter>(loadFilter);
+  const { scenarios, mode } = content;
+  const [filter, setFilterState] = useState<Filter>(() => loadFilter(mode));
   const setFilter = (f: Filter) => {
     setFilterState(f);
     setTransient({});
     try {
-      localStorage.setItem(FILTER_KEY, JSON.stringify(f));
+      localStorage.setItem(modeKey(FILTER_KEY, mode), JSON.stringify(f));
     } catch {
       /* blocked storage: the filter just won't survive a refresh */
     }
   };
   const clear = () => setFilter({ query: "", category: "" });
 
-  const [stored, setStored] = useState<Record<string, boolean>>(loadFolders);
+  const [stored, setStored] = useState<Record<string, boolean>>(() => loadFolders(mode));
   // While a search or chip is active, folders with matches open on their own;
   // clicking one then is a this-filter-only choice, forgotten when the filter
   // changes, and never written to storage.
@@ -116,7 +119,7 @@ export default function SceneTab({
     const map = { ...stored, [g.key]: next };
     setStored(map);
     try {
-      localStorage.setItem(FOLDERS_KEY, JSON.stringify(map));
+      localStorage.setItem(modeKey(FOLDERS_KEY, mode), JSON.stringify(map));
     } catch {
       /* blocked storage: folders just reopen to their defaults next visit */
     }

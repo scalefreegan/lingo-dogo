@@ -116,7 +116,7 @@ test("PUT /api/profile merges the picker keys into profile.yaml, keeps the rest,
 
     // rejected bodies: unknown key, non-string, too long, not an object, empty, not JSON
     const after = fs.readFileSync(file, "utf8");
-    for (const bad of [{ learner_name: "Eve" }, { level: 42 }, { level: "x".repeat(81) }, { level: "B1", goals: "" }, [], {}, "{not json"]) {
+    for (const bad of [{ goals: "prose, not a picker key" }, { level: 42 }, { level: "x".repeat(81) }, { level: "B1", goals: "" }, [], {}, "{not json"]) {
       const r = await call("PUT", "/api/profile", bad);
       assert.equal(r.status, 400, JSON.stringify(bad));
       assert.match(r.body.error, /./);
@@ -334,4 +334,85 @@ test("an unknown /api route is a JSON 404, not the SPA shell", async () => {
   const r = await call("GET", "/api/nope");
   assert.equal(r.status, 404);
   assert.deepEqual(r.body, { error: "no such route" });
+});
+
+/* ---------------------------------- modes --------------------------------- */
+
+test("?mode=kids serves the kids tree with its own schema, profile and levels; adult lists none of it", async () => {
+  const kids = await call("GET", "/api/content?mode=kids");
+  assert.equal(kids.status, 200);
+  assert.equal(kids.body.mode, "kids");
+  assert.deepEqual(kids.body.levels, ["First words", "Getting going", "Chatty"]);
+  assert.deepEqual(kids.body.schema.slots.map((s) => s.id), ["intro", "story", "games"]);
+  assert.equal(kids.body.profile.learner_name, "Pip");
+  assert.ok(kids.body.units.some((u) => u.id === "story-quest"));
+  assert.ok(kids.body.languages.length > 0, "shares the root languages");
+  const adult = await call("GET", "/api/content");
+  assert.equal(adult.body.mode, "adult");
+  assert.deepEqual(adult.body.levels, ["A1", "A2", "B1", "B2", "C1", "C2"]);
+  assert.ok(!adult.body.units.some((u) => u.id === "story-quest"));
+  assert.ok(!adult.body.scenarios.some((s) => s.id === "farm"));
+  const explicit = await call("GET", "/api/content?mode=adult");
+  assert.deepEqual(explicit.body.units.map((u) => u.id), adult.body.units.map((u) => u.id));
+});
+
+test("an unknown mode is a 400 on every tree-scoped route, and nothing is written", async () => {
+  for (const [m, u, body] of [
+    ["GET", "/api/content?mode=teen"], ["PUT", "/api/profile?mode=teen", { level: "A1" }], ["GET", "/api/packs?mode=teen"],
+    ["PUT", "/api/packs/2026-10-20-x?mode=teen", pack], ["POST", "/api/folders?mode=teen", { name: "x" }],
+    ["POST", "/api/assemble?mode=teen", { pack }], ["POST", "/api/export?mode=teen", { pack, id: "x" }],
+  ]) {
+    const r = await call(m, u, body);
+    assert.equal(r.status, 400, `${m} ${u}`);
+    assert.match(r.body.error, /unknown mode "teen"/);
+  }
+  assert.ok(!fs.existsSync(path.join(root, "packs", "2026-10-20-x.yaml")));
+  assert.ok(!fs.existsSync(path.join(root, "packs", "x")));
+});
+
+test("kids packs live in content/kids/packs and commit as `packs(kids):`; the adult list never sees them", async () => {
+  const listed = await call("GET", "/api/packs?mode=kids");
+  assert.deepEqual(listed.body.packs.map((p) => p.id), ["2026-10-20-farm-first"]);
+  const kidsPack = { title: "Farm again", created: "2026-10-21T09:00:00-06:00", scenario: "farm", quick_scenario: "", units: ["intro-game", "story-quest"], overrides: {}, notes: "" };
+  const put = await call("PUT", "/api/packs/2026-10-21-farm-again?mode=kids", kidsPack);
+  assert.equal(put.status, 200, JSON.stringify(put.body));
+  assert.ok(fs.existsSync(path.join(root, "kids", "packs", "2026-10-21-farm-again.yaml")));
+  assert.ok(!fs.existsSync(path.join(root, "packs", "2026-10-21-farm-again.yaml")));
+  assert.equal(subjects()[0], "packs(kids): saved 2026-10-21-farm-again");
+  assert.ok(!(await call("GET", "/api/packs")).body.packs.some((p) => p.id === "2026-10-21-farm-again"), "adult list");
+  assert.equal((await call("GET", "/api/packs/2026-10-21-farm-again")).status, 404, "adult lookup");
+  assert.equal((await call("GET", "/api/packs/2026-10-21-farm-again?mode=kids")).status, 200);
+  // Folders, move and rename take the mode too.
+  const folder = await call("POST", "/api/folders?mode=kids", { name: "german" });
+  assert.equal(folder.status, 200);
+  assert.ok(fs.existsSync(path.join(root, "kids", "packs", "german", ".keep")));
+  assert.equal(subjects()[0], "packs(kids): folder german created");
+  const moved = await call("POST", "/api/packs/2026-10-21-farm-again/move?mode=kids", { folder: "german" });
+  assert.equal(moved.body.pack.id, "german/2026-10-21-farm-again");
+  assert.deepEqual((await call("GET", "/api/packs")).body.folders.includes("german"), false, "adult folders");
+  // Assemble and export in kids mode use the kids frame and exports/kids/.
+  const assembled = await call("POST", "/api/assemble?mode=kids", { pack: kidsPack });
+  assert.match(assembled.body.markdown, /short play session for Pip/);
+  assert.deepEqual(assembled.body.warnings, []);
+  const exported = await call("POST", "/api/export?mode=kids", { pack: kidsPack, id: "2026-10-21-farm-again" });
+  assert.equal(exported.body.path, path.join(exportsDir, "kids", "2026-10-21-farm-again.md"));
+  assert.equal(fs.readFileSync(exported.body.path, "utf8"), assembled.body.markdown);
+  // Clean up: delete the pack and the folder, each a kids commit.
+  assert.equal((await call("DELETE", "/api/packs/german/2026-10-21-farm-again?mode=kids")).status, 200);
+  assert.equal((await call("DELETE", "/api/folders/german?mode=kids")).status, 200);
+  assert.equal(subjects()[0], "packs(kids): folder german deleted");
+  assert.ok(!fs.existsSync(path.join(root, "kids", "packs", "german")));
+});
+
+test("PUT /api/profile takes learner_name and writes the mode's own profile.yaml", async () => {
+  const r = await call("PUT", "/api/profile?mode=kids", { learner_name: "Mo", level: "Chatty" });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.profile.learner_name, "Mo");
+  assert.equal(r.body.profile.level, "Chatty");
+  assert.match(fs.readFileSync(path.join(root, "kids", "profile.yaml"), "utf8"), /learner_name: Mo/);
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "profile.yaml"), "utf8"), /Mo\b/, "the adult profile is untouched");
+  const adult = await call("PUT", "/api/profile", { learner_name: "Sam" });
+  assert.equal(adult.status, 200);
+  assert.equal(adult.body.profile.learner_name, "Sam");
+  assert.equal((await call("GET", "/api/content?mode=kids")).body.profile.learner_name, "Mo");
 });

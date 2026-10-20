@@ -4,8 +4,8 @@ title: Visiting Farmer Otto's animal farm
 summary: Meeting a barnyard of friendly animals, naming them, and copying their sounds.
 tags: [kids, animals, farm, beginner]
 language: de-DE
-collection: Kids mode
-category: Kids & play
+collection: German
+category: Animals
 roles:
   dojo_master: Farmer Otto, a cheerful, silly farmer who introduces his animals one by one and loves animal-sound games
   learner: a young visitor meeting the farm animals for the first time

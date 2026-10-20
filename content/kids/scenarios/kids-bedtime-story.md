@@ -4,8 +4,8 @@ title: A bedtime story with Luna the sleepy dragon
 summary: A calm, soothing story session with a dragon who keeps falling asleep mid-sentence.
 tags: [kids, story, bedtime, calm, beginner]
 language: de-DE
-collection: Kids mode
-category: Kids & play
+collection: German
+category: Bedtime
 roles:
   dojo_master: Luna, a gentle, sleepy little dragon who tells a soft bedtime story and keeps almost dozing off
   learner: a young listener helping Luna finish her bedtime story

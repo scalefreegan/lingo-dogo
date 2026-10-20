@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import { REPO_ROOT, contentRoot, packsDir } from "../../scripts/content.mjs";
-import type { ChatCommit } from "../shared/wire.ts";
+import { REPO_ROOT, contentRoot, modeRoot, packsDir } from "../../scripts/content.mjs";
+import type { ChatCommit, Mode } from "../shared/wire.ts";
 
 // Auto-commit of content/ after an agent turn, and of content/packs after
 // every pack write the UI makes, so each change is one `git log` entry and
@@ -82,7 +82,9 @@ export function commitContent(reply: string, { repoRoot = gitRoot(), contentDir 
 }
 
 /** After a pack save, move, rename or delete from the UI: `packs: <what>`,
- *  staging content/packs only. `what` is a phrase like "saved oaxaca/2026-10-19-x". */
-export function commitPacks(what: string, { repoRoot = gitRoot(), dir = packsDir() } = {}): Promise<ChatCommit> {
-  return commitDir("packs", what, dir, repoRoot);
+ *  staging that mode's packs dir only (content/packs, or content/kids/packs
+ *  with the subject `packs(kids): <what>`). `what` is a phrase like
+ *  "saved oaxaca/2026-10-19-x". */
+export function commitPacks(what: string, { repoRoot = gitRoot(), mode = "adult" as Mode, dir = packsDir(modeRoot(mode)) } = {}): Promise<ChatCommit> {
+  return commitDir(mode === "adult" ? "packs" : `packs(${mode})`, what, dir, repoRoot);
 }

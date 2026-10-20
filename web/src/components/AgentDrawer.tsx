@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { Mode } from "../types";
 import ChatPanel from "./ChatPanel";
 import { Button } from "./ui";
 
@@ -9,9 +10,11 @@ import { Button } from "./ui";
  * than unmounted when closed, so a run in progress (and the transcript the
  * panel holds) survives toggling it. `onContentChanged` is App's
  * reloadContent — the same function the header's "Reload content" button
- * calls — so a unit the agent just added appears in its slot at once. */
-export default function AgentDrawer({ onContentChanged }: { onContentChanged: () => Promise<void> | void }) {
+ * calls — so a unit the agent just added appears in its slot at once. The
+ * agent is told which library (`mode`) the user is looking at. */
+export default function AgentDrawer({ mode, onContentChanged }: { mode: Mode; onContentChanged: () => Promise<void> | void }) {
   const [open, setOpen] = useState(false);
+  const tree = mode === "kids" ? "content/kids/" : "content/";
   return (
     <>
       {/* z-50: stays clickable on top of the open drawer (z-40). On a phone
@@ -36,12 +39,12 @@ export default function AgentDrawer({ onContentChanged }: { onContentChanged: ()
       >
         <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line px-4 sm:pr-10">
           <h2 className="font-medium text-fg">Agent</h2>
-          <span className="min-w-0 flex-1 truncate text-sm text-fg-3 sm:text-xs">edits content/ · every change is a commit</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-fg-3 sm:text-xs">edits {tree} · every change is a commit</span>
           <Button variant="ghost" aria-label="Close agent panel" className="min-w-10 shrink-0 justify-center px-2 text-lg leading-none" onClick={() => setOpen(false)}>
             ×
           </Button>
         </header>
-        <ChatPanel onContentChanged={onContentChanged} />
+        <ChatPanel mode={mode} onContentChanged={onContentChanged} />
       </aside>
     </>
   );

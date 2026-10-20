@@ -36,6 +36,37 @@ export function exportsDir() {
   return override ? path.resolve(REPO_ROOT, override) : path.join(REPO_ROOT, "exports");
 }
 
+/* --------------------------------- modes --------------------------------- */
+
+/** The app's two libraries. "adult" is the content root itself; "kids" is
+ *  the self-contained tree under content/kids (its own schema, frame,
+ *  profile, units, scenarios and packs; docs/CONTENT.md "Modes"). */
+export const MODES = ["adult", "kids"];
+
+export function isMode(v) {
+  return typeof v === "string" && MODES.includes(v);
+}
+
+/** The content root of a mode. Throws on an unknown mode: a route turns that
+ *  into a 400 before any read. */
+export function modeRoot(mode = "adult") {
+  if (!isMode(mode)) throw fail("EINVAL", `unknown mode ${JSON.stringify(mode)} (one of ${MODES.join(", ")})`);
+  return mode === "adult" ? contentRoot() : path.join(contentRoot(), "kids");
+}
+
+/** Where a mode's exports go: exports/ for adult, exports/kids/ for kids. */
+export function exportsDirFor(mode = "adult") {
+  if (!isMode(mode)) throw fail("EINVAL", `unknown mode ${JSON.stringify(mode)} (one of ${MODES.join(", ")})`);
+  return mode === "adult" ? exportsDir() : path.join(exportsDir(), "kids");
+}
+
+/** The level picker's options per mode. Adult is CEFR; kids is a child-sized
+ *  scale. A profile level outside the list is still shown by the UI. */
+export const LEVELS_BY_MODE = {
+  adult: ["A1", "A2", "B1", "B2", "C1", "C2"],
+  kids: ["First words", "Getting going", "Chatty"],
+};
+
 /** One path segment — an export id, a pack folder name, a pack file stem:
  *  kebab-case, no dots or slashes. The one check that keeps a
  *  request-supplied name inside its directory. */
@@ -166,7 +197,16 @@ export function loadContent(root = contentRoot()) {
   const frame = frameRead.text ? cleanBody(frameRead.text.replace(/\r\n?/g, "\n")) : "";
 
   const profile = loadProfile(path.join(root, "profile.yaml"), report);
-  const languages = loadLanguages(path.join(root, "languages.yaml"), report);
+  // A mode tree inside the content root (content/kids) without its own
+  // languages.yaml shares the root's: kids offers the same languages as
+  // adult. Only when neither exists is the missing file reported. A root
+  // elsewhere (a test fixture, LINGO_CONTENT_DIR) gets no such fallback.
+  const ownLanguages = path.join(root, "languages.yaml");
+  const sharedLanguages = path.join(contentRoot(), "languages.yaml");
+  const rel = path.relative(contentRoot(), path.resolve(root));
+  const nested = rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  const languagesPath = nested && !fs.existsSync(ownLanguages) && fs.existsSync(sharedLanguages) ? sharedLanguages : ownLanguages;
+  const languages = loadLanguages(languagesPath, report);
 
   const units = [];
   const unitsDir = path.join(root, "units");

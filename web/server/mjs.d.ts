@@ -29,8 +29,18 @@ declare module "*/scripts/content.mjs" {
   export function contentRoot(): string;
   export function exportsDir(): string;
   export function packsDir(root?: string): string;
-  /** Never throws; bad files land in `problems`. */
-  export function loadContent(root?: string): import("../shared/wire.ts").ContentReply & {
+  /** The two libraries, "adult" and "kids" (shared/wire.ts Mode). */
+  export const MODES: import("../shared/wire.ts").Mode[];
+  export function isMode(v: unknown): v is import("../shared/wire.ts").Mode;
+  /** content/ for adult, content/kids for kids; throws EINVAL otherwise. */
+  export function modeRoot(mode?: import("../shared/wire.ts").Mode): string;
+  /** exports/ for adult, exports/kids for kids; throws EINVAL otherwise. */
+  export function exportsDirFor(mode?: import("../shared/wire.ts").Mode): string;
+  /** The level picker's options per mode. */
+  export const LEVELS_BY_MODE: Record<import("../shared/wire.ts").Mode, string[]>;
+  /** Never throws; bad files land in `problems`. The mode and its levels are
+   *  the route's to add (content.ts contentReply). */
+  export function loadContent(root?: string): Omit<import("../shared/wire.ts").ContentReply, "mode" | "levels"> & {
     packs: import("../shared/wire.ts").Pack[];
   };
   /** Throws on an id PACK_ID_RE rejects or a path outside content/packs. */

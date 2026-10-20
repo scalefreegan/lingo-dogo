@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { ContentReply, ProfileRequest } from "../types";
+import type { ContentReply, Mode, ProfileRequest } from "../types";
 import {
-  LEVELS, OVERRIDE_FIELDS, choosePickerValue, emptyOverrides, formatSessionLine, profileDefault, profileValue, sessionValues, type Draft, type OverrideKey,
+  OVERRIDE_FIELDS, choosePickerValue, emptyOverrides, formatSessionLine, profileDefault, profileValue, sessionValues, type Draft, type OverrideKey,
 } from "../draft";
 import { Button, inputClass } from "./ui";
 
@@ -13,25 +13,31 @@ const CODES: Record<string, string> = {
 };
 const abbr = (name: string) => CODES[name] ?? name.slice(0, 2).toUpperCase();
 
+const MODE_LABELS: Record<Mode, string> = { adult: "Adult", kids: "Kids" };
+
 /* The learner profile as a top-bar control: a compact pill showing the
- * current line, and a popover holding the four pickers. Same rules as the
- * old Scene-tab Learner card — picking the profile's own value clears the
- * override (see draft.ts), so a saved pack carries only what differs from
- * content/profile.yaml. */
+ * current line, and a popover holding the mode switch, the Name field and
+ * the four pickers. Same rules as the old Scene-tab Learner card — picking
+ * the profile's own value clears the override (see draft.ts), so a saved
+ * pack carries only what differs from that mode's profile.yaml. */
 export default function ProfileControl({
   content,
   draft,
+  mode,
+  onMode,
   onChange,
   onSaveDefaults,
 }: {
   content: ContentReply;
   draft: Draft;
+  mode: Mode;
+  onMode: (m: Mode) => void;
   onChange: (d: Draft) => void;
-  /** Writes the shown picker values to profile.yaml; resolves to an error
-   *  sentence, or null when the profile (and the draft) now reflect them. */
+  /** Writes the shown values to this mode's profile.yaml; resolves to an
+   *  error sentence, or null when the profile (and the draft) now reflect them. */
   onSaveDefaults: (values: ProfileRequest) => Promise<string | null>;
 }) {
-  const { profile, languages } = content;
+  const { profile, languages, levels } = content;
   const session = sessionValues(draft, profile);
   const pickers = languages.length > 0;
   const choose = (key: OverrideKey, value: string) => onChange(choosePickerValue(draft, profile, languages, key, value));
@@ -70,7 +76,8 @@ export default function ProfileControl({
     setSaveMessage(null);
     const error = await onSaveDefaults(session);
     setSaving(false);
-    setSaveMessage(error ? { tone: "err", text: error } : { tone: "ok", text: "Saved to content/profile.yaml" });
+    const file = mode === "kids" ? "content/kids/profile.yaml" : "content/profile.yaml";
+    setSaveMessage(error ? { tone: "err", text: error } : { tone: "ok", text: `Saved to ${file}` });
   }
 
   const names = languages.map((l) => l.name);
@@ -79,8 +86,10 @@ export default function ProfileControl({
   const noneReachable = profileDefault(profile, "target_variant", session.target_language) === "";
   const variantOptions = noneReachable ? ["", ...variants] : variants;
 
-  const fullLine = formatSessionLine(session) || "Not set";
-  const shortLine = [`${abbr(session.native_language)} → ${abbr(session.target_language)}`, session.level].filter(Boolean).join(" · ");
+  const fullLine = [session.learner_name, formatSessionLine(session)].filter(Boolean).join(" · ") || "Not set";
+  const shortLine = [mode === "kids" ? "Kids" : "", `${abbr(session.native_language)} → ${abbr(session.target_language)}`, session.level]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="relative">
@@ -89,11 +98,12 @@ export default function ProfileControl({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Profile: ${fullLine}`}
-        title={fullLine}
+        aria-label={`Profile: ${MODE_LABELS[mode]} mode, ${fullLine}`}
+        title={`${MODE_LABELS[mode]} mode · ${fullLine}`}
         onClick={() => (open ? close() : setOpen(true))}
+        data-testid="profile-pill"
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-medium transition-colors max-sm:size-10 max-sm:justify-center max-sm:px-0 sm:py-1 sm:text-xs ${
-          open || hasOverrides ? "border-accent bg-accent-soft text-accent" : "border-line bg-panel text-fg-2 hover:border-line-strong hover:text-fg"
+          open || hasOverrides || mode === "kids" ? "border-accent bg-accent-soft text-accent" : "border-line bg-panel text-fg-2 hover:border-line-strong hover:text-fg"
         }`}
       >
         <PersonGlyph />
@@ -114,7 +124,44 @@ export default function ProfileControl({
                 Close
               </Button>
             </div>
+            {/* The mode switch: two libraries, each with its own profile,
+                scenes, units and packs. Switching reloads everything. */}
+            <div role="radiogroup" aria-label="Mode" className="flex rounded-md border border-line p-0.5 text-sm sm:text-xs">
+              {(["adult", "kids"] as Mode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m}
+                  data-testid={`mode-${m}`}
+                  onClick={() => {
+                    if (m !== mode) {
+                      setSaveMessage(null);
+                      onMode(m);
+                    }
+                  }}
+                  className={`flex-1 rounded px-2 py-1 font-medium transition-colors ${
+                    mode === m ? "bg-accent text-accent-ink" : "text-fg-2 hover:bg-raised hover:text-fg"
+                  }`}
+                >
+                  {MODE_LABELS[m]}
+                </button>
+              ))}
+            </div>
+            <p className="-mt-1 text-sm text-fg-3 sm:text-xs">
+              {mode === "kids" ? "Kids mode: story, play and short sessions for a child who doesn't read yet." : "Adult mode: conversation practice at a CEFR level."}
+            </p>
             <div className="flex flex-col gap-2.5">
+              <label className="flex flex-col gap-1 text-sm text-fg-2 sm:text-xs">
+                Name
+                <input
+                  className={inputClass}
+                  value={session.learner_name}
+                  placeholder="Who is practising"
+                  onChange={(e) => choose("learner_name", e.target.value)}
+                  data-testid="profile-name"
+                />
+              </label>
               {pickers ? (
                 <>
                   <Picker label="Native language" value={session.native_language} options={names} onChange={(v) => choose("native_language", v)} />
@@ -124,10 +171,10 @@ export default function ProfileControl({
                   ) : (
                     <Picker label="Variant" value={session.target_variant} options={variantOptions} emptyLabel="(none)" onChange={(v) => choose("target_variant", v)} />
                   )}
-                  <Picker label="Level" value={session.level} options={LEVELS} onChange={(v) => choose("level", v)} />
+                  <Picker label="Level" value={session.level} options={levels} onChange={(v) => choose("level", v)} />
                 </>
               ) : (
-                OVERRIDE_FIELDS.map(({ key, label }) => (
+                OVERRIDE_FIELDS.filter(({ key }) => key !== "learner_name").map(({ key, label }) => (
                   <label key={key} className="flex flex-col gap-1 text-sm text-fg-2 sm:text-xs">
                     {label}
                     <input className={inputClass} value={draft.overrides[key]} placeholder={fallback(key) || "—"} onChange={(e) => setOverride(key, e.target.value)} />
@@ -135,9 +182,9 @@ export default function ProfileControl({
                 ))
               )}
             </div>
-            <p className="text-sm text-fg-3 sm:text-xs">Changes apply to this pack. Save to make them your defaults.</p>
+            <p className="text-sm text-fg-3 sm:text-xs">Changes apply to this pack. Save to make them this mode's defaults.</p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <Button onClick={() => void saveDefaults()} disabled={!dirty || saving} title="Write these four values to content/profile.yaml">
+              <Button onClick={() => void saveDefaults()} disabled={!dirty || saving} title={`Write these values to ${mode === "kids" ? "content/kids/profile.yaml" : "content/profile.yaml"}`}>
                 {saving ? "Saving…" : "Save as my defaults"}
               </Button>
               <button

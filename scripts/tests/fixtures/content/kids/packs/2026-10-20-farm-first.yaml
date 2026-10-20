@@ -1,0 +1,10 @@
+title: Farm, first visit
+created: 2026-10-20T09:00:00-06:00
+scenario: farm
+quick_scenario: ""
+units:
+  - intro-game
+  - story-quest
+  - game-echo
+overrides: {}
+notes: ""

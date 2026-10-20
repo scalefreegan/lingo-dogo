@@ -20,6 +20,14 @@ and YAML under `content/`, tracked by git. Read `docs/PRD.md` first, then
   Exports go to `exports/` (gitignored).
 - Loader and assembler (`scripts/content.mjs`, `scripts/assemble.mjs`) are pure ESM
   with no server imports, so `node --test` covers them directly.
+- Two content trees, same format: `content/` (adult mode) and `content/kids/`
+  (kids mode: own `schema.yaml`, `frame.md`, `profile.yaml`, `units/`,
+  `scenarios/`, `packs/`; shares `languages.yaml`). `modeRoot(mode)` in
+  `scripts/content.mjs` is the one place that maps a mode to a root. Every
+  content/pack/folder/assemble/export/profile route takes `?mode=adult|kids`
+  (adult when absent, 400 otherwise); kids pack writes commit as
+  `packs(kids): …` and kids exports go to `exports/kids/`. The adult loader
+  never descends into `kids/`.
 
 ## Work tracking
 Beads: `bd ready` for unblocked work, `bd show <id>` for context, `bd close <id>`
@@ -33,6 +41,7 @@ npm test                       # node --test scripts/tests/*.test.mjs
 npm --prefix web run lint      # oxlint
 (cd web && npx tsc -b)
 npm run export -- content/packs/<id>.yaml
+npm run export -- content/kids/packs/<id>.yaml   # kids library → exports/kids/
 ```
 Tests point the loader at fixtures via `LINGO_CONTENT_DIR` and `LINGO_EXPORTS_DIR`;
 never write to the real `content/` or `exports/` from a test.

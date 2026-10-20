@@ -1,11 +1,15 @@
 /* Typed fetch layer (Atlas pattern). Every call goes to the same-origin Vite
  * middleware in server/ (which enforces the same-origin check in its own
  * wrap()). This is the only file in src/ that knows URL shapes — components
- * import a named function per endpoint, never req() itself. */
+ * import a named function per endpoint, never req() itself.
+ *
+ * Every content, pack, folder, assemble, export and profile call names the
+ * mode it works in ("adult" → content/, "kids" → content/kids/); the server
+ * keeps the two trees apart, and so does the URL. */
 
 import type {
   AssembleResult, ChatCommit, ChatDone, ChatError, ChatHeartbeat, ChatHistoryReply, ChatReply, ChatRequest, ChatStart,
-  ContentReply, ExportRequest, ExportResult, FolderDeleteReply, FolderReply, FolderRequest, PackDeleteReply, PackInput,
+  ContentReply, ExportRequest, ExportResult, FolderDeleteReply, FolderReply, FolderRequest, Mode, PackDeleteReply, PackInput,
   PackMoveRequest, PackRenameRequest, PackWriteReply, PacksReply, ProfileReply, ProfileRequest, SettingsReply, SettingsRequest,
 } from "./types";
 
@@ -39,65 +43,70 @@ function json(body: unknown, method = "POST"): RequestInit {
   return { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
 }
 
-/** GET /api/content — re-read from disk on every call. */
-export function getContent(): Promise<ContentReply> {
-  return req<ContentReply>("/api/content");
+/** `<path>?mode=<mode>` — every tree-scoped route. */
+function inMode(path: string, mode: Mode): string {
+  return `${path}?mode=${encodeURIComponent(mode)}`;
 }
 
-/** PUT /api/profile — merges the picker keys into content/profile.yaml. */
-export function saveProfile(patch: ProfileRequest): Promise<ProfileReply> {
-  return req<ProfileReply>("/api/profile", json(patch, "PUT"));
+/** GET /api/content — re-read from disk on every call. */
+export function getContent(mode: Mode): Promise<ContentReply> {
+  return req<ContentReply>(inMode("/api/content", mode));
+}
+
+/** PUT /api/profile — merges the picker keys into that mode's profile.yaml. */
+export function saveProfile(mode: Mode, patch: ProfileRequest): Promise<ProfileReply> {
+  return req<ProfileReply>(inMode("/api/profile", mode), json(patch, "PUT"));
 }
 
 /* --------------------------------- packs --------------------------------- */
 
 /** A pack id in a URL: each segment encoded on its own, so the one slash of
  *  a folder id stays a path separator. */
-function packUrl(id: string): string {
-  return `/api/packs/${id.split("/").map(encodeURIComponent).join("/")}`;
+function packUrl(id: string, mode: Mode, action = ""): string {
+  return inMode(`/api/packs/${id.split("/").map(encodeURIComponent).join("/")}${action}`, mode);
 }
 
-/** GET /api/packs — the saved packs and the folders under content/packs. */
-export function listPacks(): Promise<PacksReply> {
-  return req<PacksReply>("/api/packs");
+/** GET /api/packs — the saved packs and the folders under the tree's packs/. */
+export function listPacks(mode: Mode): Promise<PacksReply> {
+  return req<PacksReply>(inMode("/api/packs", mode));
 }
 
-/** PUT /api/packs/:id — creates or overwrites content/packs/<id>.yaml and
+/** PUT /api/packs/:id — creates or overwrites <tree>/packs/<id>.yaml and
  *  commits it. Every write below answers with the pack as it reads back and
  *  the commit that recorded it (see Committed in the wire types). */
-export function savePack(id: string, pack: PackInput): Promise<PackWriteReply> {
-  return req<PackWriteReply>(packUrl(id), json(pack, "PUT"));
+export function savePack(mode: Mode, id: string, pack: PackInput): Promise<PackWriteReply> {
+  return req<PackWriteReply>(packUrl(id, mode), json(pack, "PUT"));
 }
 
-export function deletePack(id: string): Promise<PackDeleteReply> {
-  return req<PackDeleteReply>(packUrl(id), { method: "DELETE" });
+export function deletePack(mode: Mode, id: string): Promise<PackDeleteReply> {
+  return req<PackDeleteReply>(packUrl(id, mode), { method: "DELETE" });
 }
 
 /** POST /api/packs/:id/move — "" for the top level; the reply's pack.id is the new id. */
-export function movePack(id: string, folder: string): Promise<PackWriteReply> {
-  return req<PackWriteReply>(`${packUrl(id)}/move`, json({ folder } satisfies PackMoveRequest));
+export function movePack(mode: Mode, id: string, folder: string): Promise<PackWriteReply> {
+  return req<PackWriteReply>(packUrl(id, mode, "/move"), json({ folder } satisfies PackMoveRequest));
 }
 
 /** POST /api/packs/:id/rename — new title, and a file renamed to match. */
-export function renamePack(id: string, title: string): Promise<PackWriteReply> {
-  return req<PackWriteReply>(`${packUrl(id)}/rename`, json({ title } satisfies PackRenameRequest));
+export function renamePack(mode: Mode, id: string, title: string): Promise<PackWriteReply> {
+  return req<PackWriteReply>(packUrl(id, mode, "/rename"), json({ title } satisfies PackRenameRequest));
 }
 
-export function createFolder(name: string): Promise<FolderReply> {
-  return req<FolderReply>("/api/folders", json({ name } satisfies FolderRequest));
+export function createFolder(mode: Mode, name: string): Promise<FolderReply> {
+  return req<FolderReply>(inMode("/api/folders", mode), json({ name } satisfies FolderRequest));
 }
 
 /** DELETE /api/folders/:name — refused (409) unless the folder is empty. */
-export function deleteFolder(name: string): Promise<FolderDeleteReply> {
-  return req<FolderDeleteReply>(`/api/folders/${encodeURIComponent(name)}`, { method: "DELETE" });
+export function deleteFolder(mode: Mode, name: string): Promise<FolderDeleteReply> {
+  return req<FolderDeleteReply>(inMode(`/api/folders/${encodeURIComponent(name)}`, mode), { method: "DELETE" });
 }
 
-export function assemblePack(pack: PackInput, signal?: AbortSignal): Promise<AssembleResult> {
-  return req<AssembleResult>("/api/assemble", { ...json({ pack }), signal });
+export function assemblePack(mode: Mode, pack: PackInput, signal?: AbortSignal): Promise<AssembleResult> {
+  return req<AssembleResult>(inMode("/api/assemble", mode), { ...json({ pack }), signal });
 }
 
-export function exportPack(id: string, pack: PackInput): Promise<ExportResult> {
-  return req<ExportResult>("/api/export", json({ id, pack } satisfies ExportRequest));
+export function exportPack(mode: Mode, id: string, pack: PackInput): Promise<ExportResult> {
+  return req<ExportResult>(inMode("/api/export", mode), json({ id, pack } satisfies ExportRequest));
 }
 
 /* --------------------------------- chat ---------------------------------- */
@@ -157,8 +166,9 @@ async function ssePost(url: string, body: unknown, handlers: ChatHandlers, signa
   if (!sawDone) throw new Error("stream ended unexpectedly — the server may have restarted; try again");
 }
 
-export function sendChat(message: string, handlers: ChatHandlers, signal?: AbortSignal): Promise<void> {
-  return ssePost("/api/chat", { message } satisfies ChatRequest, handlers, signal);
+/** The agent is told which library the user is looking at. */
+export function sendChat(mode: Mode, message: string, handlers: ChatHandlers, signal?: AbortSignal): Promise<void> {
+  return ssePost("/api/chat", { message, mode } satisfies ChatRequest, handlers, signal);
 }
 
 export function getChatHistory(): Promise<ChatHistoryReply> {

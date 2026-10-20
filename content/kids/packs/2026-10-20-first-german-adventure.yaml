@@ -1,0 +1,18 @@
+title: "First German adventure: the farm"
+created: 2026-10-20T09:00:00-06:00
+scenario: kids-farm-animals
+quick_scenario: ""
+units:
+  - intro-game
+  - narrator-kids-warm
+  - helper-dragon
+  - story-quest
+  - game-echo
+  - energy-bouncy-5
+  - correct-playful
+  - ending-celebration
+overrides: {}
+notes: |
+  A five-minute, audio-only first visit to Farmer Otto's animals, with Luna
+  the dragon along for the ride. Learner name, language, and level come
+  from the kids profile.

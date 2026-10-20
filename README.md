@@ -55,6 +55,17 @@ Command line export of a saved pack:
 npm run export -- content/packs/2026-10-19-palenque-first-visit.yaml
 ```
 
+## Modes
+
+There are two libraries, switched from the Profile pill in the top bar. **Adult**
+is `content/`: conversation practice at a CEFR level. **Kids** is `content/kids/`:
+story, play and short sessions for a child who does not read yet, with its own
+slots (opening, helper character, story shape, repetition games, energy and
+length), its own frame, profile, scenarios and packs, and a child-sized level
+scale. The two never mix: a kids pack lives in `content/kids/packs/`, a kids
+export in `exports/kids/`, and the agent is told which library you are looking
+at. Each mode remembers its own draft, tab and filters in the browser.
+
 ## Authoring content
 
 `docs/CONTENT.md` is the contract: file layout, required frontmatter, placeholders

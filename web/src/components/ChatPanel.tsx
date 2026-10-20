@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { clearChatHistory, getChatHistory, getSettings, sendChat, setModel } from "../api";
-import type { ChatCommit, ChatMessage, SettingsReply } from "../types";
+import type { ChatCommit, ChatMessage, Mode, SettingsReply } from "../types";
 import { Button, inputClass } from "./ui";
 
 /* The embedded agent's chat (wine-guide ChatPanel pattern, trimmed): the
@@ -68,7 +68,7 @@ function Rich({ text }: { text: string }) {
 /** A commit the server reported, as a transcript line: "<hash>: <summary>". */
 const commitLine = (c: Extract<ChatCommit, { hash: string }>): ChatMessage => ({ role: "commit", text: `${c.hash}: ${c.summary}`, ts: new Date().toISOString() });
 
-export default function ChatPanel({ onContentChanged }: { onContentChanged: () => Promise<void> | void }) {
+export default function ChatPanel({ mode, onContentChanged }: { mode: Mode; onContentChanged: () => Promise<void> | void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -104,7 +104,7 @@ export default function ChatPanel({ onContentChanged }: { onContentChanged: () =
       // No AbortController on purpose: the run edits files, and a kill
       // mid-edit (on an unmount, say) would leave content/ half-written.
       // The server kills the agent only when the connection itself drops.
-      await sendChat(message, {
+      await sendChat(mode, message, {
         heartbeat: (d) => setElapsed(d.elapsed),
         message: (d) => {
           setMessages((m) => [...m, { role: "assistant", text: d.text, ts: d.ts }]);

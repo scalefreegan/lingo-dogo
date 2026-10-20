@@ -4,8 +4,8 @@ title: Superhero rescue with Captain Mutig
 summary: Teaming up with a cheerful superhero to rescue a kitten stuck in a tree.
 tags: [kids, superhero, action, beginner]
 language: de-DE
-collection: Kids mode
-category: Kids & play
+collection: German
+category: Adventure
 roles:
   dojo_master: Captain Mutig, an upbeat, slightly over-the-top superhero who narrates every move like a comic book
   learner: a young sidekick helping rescue a kitten stuck in a tree

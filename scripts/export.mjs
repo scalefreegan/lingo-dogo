@@ -3,21 +3,54 @@
 // button writes.
 //   node scripts/export.mjs content/packs/<id>.yaml
 //   npm run export -- content/packs/<id>.yaml
-// The library comes from content/ (or LINGO_CONTENT_DIR); the pack can be any
-// path, and its id is its filename stem. Warnings go to stderr and do not fail
-// the run, matching the app; an unreadable or invalid pack exits 1.
+//   npm run export -- content/kids/packs/<id>.yaml        (kids library, exports/kids/)
+//   npm run export -- --mode kids some/other/pack.yaml
+// The library comes from content/ (or LINGO_CONTENT_DIR) for adult mode and
+// content/kids/ for kids mode; a pack path inside content/kids/ picks kids
+// mode by itself. The pack can be any path, and its id is its filename stem.
+// Warnings go to stderr and do not fail the run, matching the app; an
+// unreadable or invalid pack exits 1.
 
 import path from "node:path";
-import { loadContent, loadPackFile, writeExport, ID_RE } from "./content.mjs";
+import { MODES, exportsDirFor, isMode, loadContent, loadPackFile, modeRoot, writeExport, ID_RE } from "./content.mjs";
 import { assemble } from "./assemble.mjs";
 
+const USAGE = "usage: node scripts/export.mjs [--mode adult|kids] content/packs/<id>.yaml";
+
+/** `--mode <m>` anywhere in argv; the rest is the positional file. */
+function parseArgs(argv) {
+  let mode = null;
+  const rest = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--mode") {
+      mode = argv[++i];
+      if (!isMode(mode)) return { error: `--mode must be one of ${MODES.join(", ")}` };
+    } else if (argv[i].startsWith("--mode=")) {
+      mode = argv[i].slice("--mode=".length);
+      if (!isMode(mode)) return { error: `--mode must be one of ${MODES.join(", ")}` };
+    } else {
+      rest.push(argv[i]);
+    }
+  }
+  if (rest.length !== 1) return { error: USAGE };
+  return { mode, file: rest[0] };
+}
+
+/** Kids mode when the pack lives inside the kids tree, else adult. */
+function inferMode(abs) {
+  const kids = path.resolve(modeRoot("kids"));
+  const rel = path.relative(kids, abs);
+  return rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? "kids" : "adult";
+}
+
 function main(argv) {
-  const file = argv[0];
-  if (!file || argv.length > 1) {
-    console.error("usage: node scripts/export.mjs content/packs/<id>.yaml");
+  const args = parseArgs(argv);
+  if (args.error) {
+    console.error(args.error);
     return 2;
   }
-  const abs = path.resolve(file);
+  const abs = path.resolve(args.file);
+  const mode = args.mode ?? inferMode(abs);
   const { pack, problems } = loadPackFile(abs);
   for (const p of problems) console.error(`${p.level}: ${p.file}: ${p.message}`);
   if (!pack) return 1;
@@ -26,7 +59,7 @@ function main(argv) {
     return 1;
   }
 
-  const content = loadContent();
+  const content = loadContent(modeRoot(mode));
   // Content problems elsewhere in the library don't stop an export, but say
   // how many so a unit missing from the output is explainable.
   const errors = content.problems.filter((p) => p.level === "error");
@@ -34,7 +67,7 @@ function main(argv) {
 
   const { markdown, warnings, stats } = assemble(content, pack);
   for (const w of warnings) console.error(`warning: ${w}`);
-  const out = writeExport(pack.id, markdown);
+  const out = writeExport(pack.id, markdown, exportsDirFor(mode));
   console.log(out);
   console.log(`${stats.words} words, ~${stats.tokens} tokens`);
   return 0;

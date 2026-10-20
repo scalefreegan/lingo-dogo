@@ -212,3 +212,13 @@ test("{{target_variant}} falls back to the target language when no variant appli
   assert.ok(!out.markdown.includes("{{target_variant}}"), "placeholder must not leak");
   assert.ok(!out.warnings.some((w) => w.includes("target_variant")), out.warnings.join("\n"));
 });
+
+test("scenario bodies get placeholders too; an unknown one is warned about naming the scenario", () => {
+  const scenarios = content.scenarios.map((s) => (s.id === "market" ? { ...s, body: "{{learner_name}} wants {{fruit}} in {{target_language}}." } : s));
+  const { markdown, warnings } = run({ scenario: "market", quick_scenario: "" }, { ...content, scenarios });
+  assert.match(markdown, /Sam wants \{\{fruit\}\} in Spanish\./);
+  assert.ok(warnings.includes('Unknown placeholder {{fruit}} in scenario "market"; left as-is.'), warnings.join("\n"));
+  const quick = run({ scenario: "", quick_scenario: "Help {{learner_name}} buy {{fruit}}." });
+  assert.match(quick.markdown, /Help Sam buy \{\{fruit\}\}\./);
+  assert.ok(quick.warnings.includes("Unknown placeholder {{fruit}} in the quick scenario; left as-is."), quick.warnings.join("\n"));
+});

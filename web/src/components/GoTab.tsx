@@ -57,7 +57,7 @@ export default function GoTab({
     setExporting(true);
     setExportError(null);
     try {
-      setExported(await exportPack(exportId, pack));
+      setExported(await exportPack(content.mode, exportId, pack));
     } catch (e) {
       setExported(null);
       setExportError((e as Error).message);

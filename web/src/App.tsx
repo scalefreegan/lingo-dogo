@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ApiError, assemblePack, createFolder, deleteFolder, deletePack, getContent, listPacks, movePack, renamePack, savePack, saveProfile,
 } from "./api";
-import type { AssembleResult, Committed, ContentReply, Pack, PackInput, PacksReply, Problem, ProfileRequest } from "./types";
+import type { AssembleResult, Committed, ContentReply, Mode, Pack, PackInput, PacksReply, Problem, ProfileRequest } from "./types";
 import {
-  draftToPack, emptyOverrides, formatSessionLine, joinPackId, loadRememberedDraft, localTimestamp, newDraft, packId, packToDraft, rememberDraft,
-  sessionValues, splitPackId, type Draft,
+  draftToPack, emptyOverrides, formatSessionLine, joinPackId, loadRememberedDraft, localTimestamp, modeKey, newDraft, packId, packToDraft,
+  rememberDraft, sessionValues, splitPackId, type Draft,
 } from "./draft";
 import TopBar from "./components/TopBar";
 import SummaryBar from "./components/SummaryBar";
@@ -20,17 +20,33 @@ import type { PackStatus, SaveOutcome, Tab } from "./components/shared";
  *  notes box, short enough that a checkbox feels immediate. */
 const ASSEMBLE_DELAY_MS = 200;
 
+const MODE_KEY = "lingo-dojo.mode.v1";
 const TAB_KEY = "lingo-dojo.tab.v1";
 
 function isTab(v: string | null): v is Tab {
   return v === "scene" || v === "customize" || v === "go" || v === "library";
 }
 
-/** The last tab this browser was on — "Scene" the first time, or if storage
- *  is blocked or holds something unrecognized. */
-function loadRememberedTab(): Tab {
+function isMode(v: string | null): v is Mode {
+  return v === "adult" || v === "kids";
+}
+
+/** The library this browser was last in — adult the first time, or if
+ *  storage is blocked or holds something unrecognized. */
+function loadRememberedMode(): Mode {
   try {
-    const raw = localStorage.getItem(TAB_KEY);
+    const raw = localStorage.getItem(MODE_KEY);
+    return isMode(raw) ? raw : "adult";
+  } catch {
+    return "adult";
+  }
+}
+
+/** The last tab this browser was on in a mode — "Scene" the first time, or
+ *  if storage is blocked or holds something unrecognized. */
+function loadRememberedTab(mode: Mode): Tab {
+  try {
+    const raw = localStorage.getItem(modeKey(TAB_KEY, mode));
     return isTab(raw) ? raw : "scene";
   } catch {
     return "scene";
@@ -38,6 +54,10 @@ function loadRememberedTab(): Tab {
 }
 
 export default function App() {
+  // Which library is open. Everything below — content, packs, draft, tab —
+  // belongs to this mode; switching it reloads the lot and swaps in that
+  // mode's own remembered draft, so the two never bleed into each other.
+  const [mode, setModeState] = useState<Mode>(loadRememberedMode);
   const [content, setContent] = useState<ContentReply | null>(null);
   const [packs, setPacks] = useState<Pack[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
@@ -57,45 +77,78 @@ export default function App() {
   // only ever sets state from its async callbacks.
   const [settled, setSettled] = useState<{ pack: PackInput; version: number } | null>(null);
   const [saveRequest, setSaveRequest] = useState<{ title: string; folder: string; seq: number } | null>(null);
-  const [tab, setTabState] = useState<Tab>(loadRememberedTab);
+  const [tab, setTabState] = useState<Tab>(() => loadRememberedTab(mode));
 
-  const setTab = useCallback((t: Tab) => {
-    setTabState(t);
-    try {
-      localStorage.setItem(TAB_KEY, t);
-    } catch {
-      /* private window or blocked storage: the next visit just starts on Scene */
-    }
-  }, []);
+  const setTab = useCallback(
+    (t: Tab) => {
+      setTabState(t);
+      try {
+        localStorage.setItem(modeKey(TAB_KEY, mode), t);
+      } catch {
+        /* private window or blocked storage: the next visit just starts on Scene */
+      }
+    },
+    [mode],
+  );
 
-  const applyLoad = useCallback((c: ContentReply, p: PacksReply) => {
+  // The mode on <html>, for the stylesheet's kids accent.
+  useEffect(() => {
+    document.documentElement.dataset.mode = mode;
+  }, [mode]);
+
+  /** Put a loaded library into state. `fresh` is true when the library is a
+   *  different mode's than the draft: the draft is then replaced by that
+   *  mode's remembered one (so a refresh or a switch back keeps today's
+   *  picks), else by the library's defaults. A reload within the same mode
+   *  keeps the draft (a unit that vanished shows up as a warning). */
+  const applyLoad = useCallback((m: Mode, c: ContentReply, p: PacksReply, fresh: boolean) => {
     setContent(c);
     setPacks(p.packs);
     setFolders(p.folders);
     setLoadError(null);
     setContentVersion((v) => v + 1);
-    // The first load restores the last draft this browser had (so a refresh
-    // keeps today's picks), else starts from the library's defaults; later
-    // reloads keep the draft (a unit that vanished shows up as a warning).
-    setDraft((d) => d ?? loadRememberedDraft() ?? newDraft(c));
+    setDraft((d) => (fresh || !d ? (loadRememberedDraft(m) ?? newDraft(c)) : d));
   }, []);
 
+  // Load (and, on a mode switch, reload) the library. The effect's own
+  // `live` flag drops a reply that lands after the mode changed again.
   useEffect(() => {
     let live = true;
-    Promise.all([getContent(), listPacks()]).then(
-      ([c, p]) => live && applyLoad(c, p),
+    Promise.all([getContent(mode), listPacks(mode)]).then(
+      ([c, p]) => live && applyLoad(mode, c, p, true),
       (e) => live && setLoadError((e as Error).message),
     );
     return () => {
       live = false;
     };
-  }, [applyLoad]);
+  }, [mode, applyLoad]);
+
+  function switchMode(m: Mode) {
+    if (m === mode) return;
+    // The outgoing draft is already remembered under its own key (the effect
+    // below runs on every change); nothing to flush. Drop the stale preview
+    // and status so nothing from the old library lingers while the new one
+    // loads, and start on that mode's last tab.
+    setDraft(null);
+    setResult(null);
+    setSettled(null);
+    setAssembleError(null);
+    setPackStatus(null);
+    setSaveRequest(null);
+    setTabState(loadRememberedTab(m));
+    setModeState(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* blocked storage: the next visit just opens in adult mode */
+    }
+  }
 
   async function reloadContent() {
     setReloading(true);
     try {
-      const [c, p] = await Promise.all([getContent(), listPacks()]);
-      applyLoad(c, p);
+      const [c, p] = await Promise.all([getContent(mode), listPacks(mode)]);
+      applyLoad(mode, c, p, false);
     } catch (e) {
       setLoadError((e as Error).message);
     } finally {
@@ -112,7 +165,7 @@ export default function App() {
     if (!pack) return;
     const ctrl = new AbortController();
     const timer = window.setTimeout(() => {
-      assemblePack(pack, ctrl.signal).then(
+      assemblePack(mode, pack, ctrl.signal).then(
         (r) => {
           setResult(r);
           setAssembleError(null);
@@ -129,7 +182,7 @@ export default function App() {
       window.clearTimeout(timer);
       ctrl.abort();
     };
-  }, [pack, contentVersion]);
+  }, [mode, pack, contentVersion]);
 
   const scenarioTitle = useMemo(() => {
     if (!content || !pack) return "";
@@ -139,12 +192,13 @@ export default function App() {
 
   const learnerLine = useMemo(() => {
     if (!content || !draft) return "";
-    return formatSessionLine(sessionValues(draft, content.profile));
+    const s = sessionValues(draft, content.profile);
+    return [s.learner_name, formatSessionLine(s)].filter(Boolean).join(" · ");
   }, [content, draft]);
 
   /** Re-list after any pack write, so the library shows what is on disk. */
   async function refreshPacks() {
-    const p = await listPacks();
+    const p = await listPacks(mode);
     setPacks(p.packs);
     setFolders(p.folders);
   }
@@ -179,7 +233,7 @@ export default function App() {
     if (!overwrite && id !== src && packs.some((p) => p.id === id)) return { ok: false, conflict: id };
     const created = id === src && draft.created ? draft.created : localTimestamp();
     try {
-      const r = await savePack(id, { ...pack, title, created });
+      const r = await savePack(mode, id, { ...pack, title, created });
       setDraft((d) => (d ? { ...d, title: r.pack.title, sourceId: r.pack.id, created: r.pack.created } : d));
       await refreshPacks();
       setPackStatus(report(`Saved ${r.pack.id}`, r));
@@ -191,7 +245,7 @@ export default function App() {
 
   function move(id: string, folder: string) {
     return act(async () => {
-      const r = await movePack(id, folder);
+      const r = await movePack(mode, id, folder);
       setDraft((d) => (d && d.sourceId === id ? { ...d, sourceId: r.pack.id } : d));
       return report(`Moved ${id} to ${folder || "no folder"}`, r);
     });
@@ -199,7 +253,7 @@ export default function App() {
 
   function rename(id: string, title: string) {
     return act(async () => {
-      const r = await renamePack(id, title);
+      const r = await renamePack(mode, id, title);
       setDraft((d) => (d && d.sourceId === id ? { ...d, sourceId: r.pack.id, title: r.pack.title } : d));
       return report(`Renamed ${id} to ${r.pack.id}`, r);
     });
@@ -207,7 +261,7 @@ export default function App() {
 
   function remove(id: string) {
     return act(async () => {
-      const r = await deletePack(id);
+      const r = await deletePack(mode, id);
       // The draft keeps its content but is no longer "the saved pack": a
       // later save writes a new file rather than quietly resurrecting this one.
       setDraft((d) => (d && d.sourceId === id ? { ...d, sourceId: null } : d));
@@ -216,20 +270,20 @@ export default function App() {
   }
 
   function addFolder(name: string) {
-    return act(async () => report(`Created folder ${name}`, await createFolder(name)));
+    return act(async () => report(`Created folder ${name}`, await createFolder(mode, name)));
   }
 
   function removeFolder(name: string) {
-    return act(async () => report(`Deleted folder ${name}`, await deleteFolder(name)));
+    return act(async () => report(`Deleted folder ${name}`, await deleteFolder(mode, name)));
   }
 
-  /** "Save as my defaults": write the pickers' values to profile.yaml, reload
-   *  so content.profile is the new file, then clear the four overrides — they
-   *  are the defaults now, so neither the draft nor a pack saved from it
-   *  should repeat them. Resolves to an error sentence, or null. */
+  /** "Save as my defaults": write the shown values to this mode's
+   *  profile.yaml, reload so content.profile is the new file, then clear the
+   *  overrides — they are the defaults now, so neither the draft nor a pack
+   *  saved from it should repeat them. Resolves to an error sentence, or null. */
   async function saveDefaults(values: ProfileRequest): Promise<string | null> {
     try {
-      await saveProfile(values);
+      await saveProfile(mode, values);
     } catch (e) {
       return e instanceof ApiError ? e.message : String(e);
     }
@@ -255,10 +309,12 @@ export default function App() {
     setTab("go");
   }
 
-  // Remember every change; "New pack" below is the way back to the defaults.
+  // Remember every change under this mode's key; "New pack" below is the
+  // way back to the defaults. The draft is null between a mode switch and
+  // its load, and a null is not written (it would erase the remembered one).
   useEffect(() => {
-    if (draft) rememberDraft(draft);
-  }, [draft]);
+    if (draft && content?.mode === mode) rememberDraft(mode, draft);
+  }, [mode, content, draft]);
 
   function startNew() {
     if (!content) return;
@@ -267,26 +323,44 @@ export default function App() {
     setTab("scene");
   }
 
+  // The loaded library must be this mode's before anything is drawn from it:
+  // between a switch and its reply, `content` is still the old mode's.
+  const ready = content?.mode === mode ? content : null;
+
   return (
     <div className="flex min-h-screen flex-col">
-      <TopBar tab={tab} onTab={setTab} onNewPack={startNew} onReload={() => void reloadContent()} reloading={reloading} ready={!!content} content={content} draft={draft} onChange={setDraft} onSaveDefaults={saveDefaults} />
-      {content && draft && pack && (
-        <SummaryBar content={content} draft={draft} pack={pack} sceneTitle={scenarioTitle} result={result} pending={assembling} onTab={setTab} />
+      <TopBar
+        tab={tab}
+        onTab={setTab}
+        onNewPack={startNew}
+        onReload={() => void reloadContent()}
+        reloading={reloading}
+        ready={!!ready}
+        mode={mode}
+        onMode={switchMode}
+        content={ready}
+        draft={draft}
+        onChange={setDraft}
+        onSaveDefaults={saveDefaults}
+      />
+      {ready && draft && pack && (
+        <SummaryBar content={ready} draft={draft} pack={pack} sceneTitle={scenarioTitle} result={result} pending={assembling} onTab={setTab} />
       )}
 
       {loadError && <p className="bg-err-soft px-4 py-2 text-sm text-err">Could not load content: {loadError}</p>}
-      {content && content.problems.length > 0 && <ProblemsStrip problems={content.problems} />}
+      {ready && ready.problems.length > 0 && <ProblemsStrip problems={ready.problems} />}
 
-      {content && draft && pack ? (
+      {ready && draft && pack ? (
         <main className="flex-1 p-4">
           <div className={`mx-auto flex w-full flex-col ${tab === "scene" ? "max-w-[1200px]" : "max-w-3xl"}`}>
             {tab === "scene" && (
-              <SceneTab content={content} draft={draft} onChange={setDraft} onNext={() => setTab("customize")} />
+              <SceneTab key={mode} content={ready} draft={draft} onChange={setDraft} onNext={() => setTab("customize")} />
             )}
-            {tab === "customize" && <CustomizeTab content={content} draft={draft} onChange={setDraft} onNext={() => setTab("go")} />}
+            {tab === "customize" && <CustomizeTab key={mode} content={ready} draft={draft} onChange={setDraft} onNext={() => setTab("go")} />}
             {tab === "go" && (
               <GoTab
-                content={content}
+                key={mode}
+                content={ready}
                 pack={pack}
                 title={draft.title}
                 sourceId={draft.sourceId}
@@ -306,9 +380,10 @@ export default function App() {
             )}
             {tab === "library" && (
               <LibraryTab
+                key={mode}
                 packs={packs}
                 folders={folders}
-                content={content}
+                content={ready}
                 currentId={draft.sourceId}
                 onLoad={load}
                 onClone={clone}
@@ -325,7 +400,7 @@ export default function App() {
         !loadError && <p className="p-6 text-sm text-fg-3">Loading content…</p>
       )}
 
-      <AgentDrawer onContentChanged={reloadContent} />
+      <AgentDrawer mode={mode} onContentChanged={reloadContent} />
     </div>
   );
 }

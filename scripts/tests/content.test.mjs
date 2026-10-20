@@ -406,3 +406,59 @@ test("renamePack updates the title and re-slugs the stem, keeping the date and f
   assert.equal(slugify("Café en Oaxaca"), "cafe-en-oaxaca");
   assert.equal(slugify("!!!"), "pack");
 });
+
+/* ---------------------------------- modes --------------------------------- */
+
+test("modeRoot: adult is the content root, kids is content/kids; anything else is EINVAL", async () => {
+  const { MODES, isMode, modeRoot, exportsDirFor, LEVELS_BY_MODE } = await import("../content.mjs");
+  assert.deepEqual(MODES, ["adult", "kids"]);
+  assert.equal(isMode("kids"), true);
+  assert.equal(isMode("teen"), false);
+  assert.equal(isMode(undefined), false);
+  assert.equal(modeRoot(), contentRoot());
+  assert.equal(modeRoot("adult"), contentRoot());
+  assert.equal(modeRoot("kids"), path.join(contentRoot(), "kids"));
+  assert.throws(() => modeRoot("teen"), { code: "EINVAL" });
+  assert.equal(exportsDirFor("kids"), path.join(exportsDirFor("adult"), "kids"));
+  assert.throws(() => exportsDirFor("x"), { code: "EINVAL" });
+  // Levels are the picker's options, so each mode must name at least one and
+  // the two lists must not overlap: a level says which library it belongs to.
+  for (const m of MODES) assert.ok(LEVELS_BY_MODE[m].length > 0, m);
+  assert.deepEqual(LEVELS_BY_MODE.adult.filter((l) => LEVELS_BY_MODE.kids.includes(l)), []);
+});
+
+test("the kids tree loads on its own and shares the content root's languages.yaml", async () => {
+  const { modeRoot } = await import("../content.mjs");
+  const root = copyFixture();
+  const was = process.env.LINGO_CONTENT_DIR;
+  process.env.LINGO_CONTENT_DIR = root;
+  try {
+    const kids = loadContent(modeRoot("kids"));
+    assert.deepEqual(kids.schema.slots.map((s) => s.id), ["intro", "story", "games"]);
+    assert.deepEqual(kids.units.map((u) => u.id).sort(), ["game-echo", "intro-game", "story-quest"]);
+    assert.deepEqual(kids.scenarios.map((s) => s.id), ["farm"]);
+    assert.deepEqual(kids.packs.map((p) => p.id), ["2026-10-20-farm-first"]);
+    assert.equal(kids.profile.learner_name, "Pip");
+    assert.match(kids.frame, /^You are the dojo master running a short play session/);
+    // No languages.yaml of its own: the root's list, and no problem about it.
+    assert.ok(kids.languages.some((l) => l.name === "Spanish"), "root languages");
+    assert.deepEqual(problemFor(kids, "languages.yaml"), []);
+    // The adult tree knows nothing of kids/: no kids unit, scenario or pack leaks up.
+    const adult = loadContent(modeRoot("adult"));
+    assert.ok(!adult.units.some((u) => u.id === "intro-game"));
+    assert.ok(!adult.scenarios.some((s) => s.id === "farm"));
+    assert.ok(!adult.packs.some((p) => p.id.includes("farm")));
+    assert.ok(!listFolders(root).includes("kids"));
+    // Its own languages.yaml wins when present; neither file is a warning.
+    write(root, "kids/languages.yaml", "version: 1\nlanguages:\n  - name: Klingon\n    variants: []\n");
+    assert.deepEqual(loadContent(modeRoot("kids")).languages.map((l) => l.name), ["Klingon"]);
+    fs.rmSync(path.join(root, "kids", "languages.yaml"));
+    fs.rmSync(path.join(root, "languages.yaml"));
+    const none = loadContent(modeRoot("kids"));
+    assert.deepEqual(none.languages, []);
+    assert.equal(problemFor(none, "languages.yaml").length, 1, "missing everywhere is reported once");
+  } finally {
+    if (was === undefined) delete process.env.LINGO_CONTENT_DIR;
+    else process.env.LINGO_CONTENT_DIR = was;
+  }
+});
