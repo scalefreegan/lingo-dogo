@@ -162,8 +162,10 @@ the app is a git commit (`packs: <what>`), so nothing is lost: `git log -- conte
 ## `content/frame.md` — the fixed preamble
 
 Plain markdown (no frontmatter) placed at the top of every export. It establishes
-the dojo-master role and the fixed rules (stay in the voice session, keep turns
-short for speech, etc.). It may use the same placeholders as units.
+the dojo-master role, the fixed rules (stay in the voice session, keep turns
+short for speech, etc.), and the voice rule: both speakers are native speakers
+of the target variant and keep that accent even when speaking the learner's
+native language. It may use the same placeholders as units.
 
 ## Assembly algorithm (`scripts/assemble.mjs`)
 

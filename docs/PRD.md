@@ -17,7 +17,7 @@ Decided 2026-10-19 in the intake interview (all answers below are final for v1):
 | Unit model | **Slots with cardinality** declared in `content/schema.yaml`; units declare their slot; assembly walks slots in schema order |
 | Learner profile | Global `content/profile.yaml` with per-pack overrides |
 | Packs | Saved as `content/packs/<date>-<slug>.yaml`; seed library in Spanish (Oaxaca scenarios) |
-| Voice target | Undecided; export is tool-agnostic markdown with a length readout |
+| Voice target | ChatGPT voice mode and Claude voice in practice (2026-10-19); export stays tool-agnostic markdown with a length readout. The frame fixes the voice: every speaker is a native speaker of the target variant, in both languages |
 
 ## Vocabulary
 
